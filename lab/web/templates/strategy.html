@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}{{ strategy.title }} — strategy-lab{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div style="display:flex; align-items:center; gap:var(--s4); margin-bottom:var(--s3)">
+    <span class="badge">{{ strategy.universe }}</span>
+    <span class="badge accent">{{ strategy.key }}</span>
+  </div>
+  <h1 class="title">{{ strategy.title }}</h1>
+  <p>{{ strategy.summary }}</p>
+</div>
+
+{% if strategy.notes %}
+<section style="margin-top:0">
+  <div class="card">
+    <div class="overline" style="margin-bottom:var(--s5)">What it claims</div>
+    <div class="prose"><p>{{ strategy.notes }}</p></div>
+  </div>
+</section>
+{% endif %}
+
+{% if strategy.provenance %}
+<section>
+  <div class="card">
+    <div class="overline" style="margin-bottom:var(--s5)">Provenance</div>
+    <div class="prose"><p>{{ strategy.provenance }}</p></div>
+  </div>
+</section>
+{% endif %}
+
+<section>
+  <div class="section-head">
+    <h2 class="headline">Parameters</h2>
+    <span class="caption tertiary">{{ strategy.params|length }} declared ·
+      the console builds its form from this table</span>
+  </div>
+  <div class="card flush">
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr>
+          <th class="name">Name</th><th>Type</th><th>Default</th>
+          <th>Range</th><th>Sweep grid</th><th class="wrap">What it does</th>
+        </tr></thead>
+        <tbody>
+        {% for p in strategy.params %}
+          <tr>
+            <td class="name mono">{{ p.name }}</td>
+            <td class="secondary">{{ p.kind }}</td>
+            <td>{{ p.default }}</td>
+            <td class="secondary">
+              {%- if p.choices %}{{ p.choices|join(' · ') }}
+              {%- elif p.low is not none or p.high is not none -%}
+                {{ p.low if p.low is not none else '−∞' }} to {{ p.high if p.high is not none else '∞' }}
+              {%- else -%}—{% endif %}
+            </td>
+            <td class="secondary">{{ p.grid|join(', ') if p.grid else '—' }}</td>
+            <td class="wrap">{{ p.help }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<div class="footer-bar">
+  <div class="status">Contract: <code class="mono">on_bar(ctx) -&gt; list[Order]</code></div>
+  <a class="btn-primary" href="{{ url_for('console') }}">Back to the console</a>
+</div>
+{% endblock %}

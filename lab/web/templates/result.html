@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Run {{ job_id }} — strategy-lab{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1 class="title" id="run-label">{{ job.label or 'Backtest' }}</h1>
+  <p id="run-subtitle" class="caption tertiary">{{ job.created }}</p>
+</div>
+
+<!-- ── while it runs ────────────────────────────────────────────────── -->
+<section id="running">
+  <div class="card">
+    <div class="overline" style="margin-bottom: var(--s4)">Running</div>
+    <div class="progress"><i id="progress-bar"></i></div>
+    <div class="caption secondary" id="progress-stage" style="margin-top: var(--s4)">queued</div>
+  </div>
+</section>
+
+<!-- ── failure ──────────────────────────────────────────────────────── -->
+<section id="failed" hidden>
+  <div class="notice bad">
+    <div><strong>The run failed.</strong>
+      <div class="mono" id="error-text" style="margin-top: var(--s3)"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── result ───────────────────────────────────────────────────────── -->
+<div id="result" hidden>
+
+  <div id="warnings"></div>
+
+  <!-- the one hero number: was this distinguishable from luck? -->
+  <section style="margin-top:0">
+    <div class="card">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--s7); flex-wrap:wrap">
+        <div>
+          <div class="overline">Sharpe ratio</div>
+          <div class="hero" id="hero-sharpe">—</div>
+          <div class="callout secondary" id="hero-verdict" style="margin-top: var(--s3)"></div>
+        </div>
+        <div id="sleeve-tabs" style="display:flex; gap:var(--s3); flex-wrap:wrap"></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="grid four">
+        <div class="stat"><span class="overline">Total return</span>
+          <span class="value" id="stat-return">—</span>
+          <span class="sub" id="stat-return-sub"></span></div>
+        <div class="stat"><span class="overline">Max drawdown</span>
+          <span class="value" id="stat-dd">—</span>
+          <span class="sub" id="stat-dd-sub"></span></div>
+        <div class="stat"><span class="overline">Round trips</span>
+          <span class="value" id="stat-trades">—</span>
+          <span class="sub" id="stat-trades-sub"></span></div>
+        <div class="stat"><span class="overline">Cost paid</span>
+          <span class="value" id="stat-costs">—</span>
+          <span class="sub" id="stat-costs-sub"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- equity -->
+  <section>
+    <div class="section-head">
+      <h2 class="headline">Equity</h2>
+      <div class="readout" id="chart-readout"></div>
+    </div>
+    <div class="card">
+      <svg class="chart" id="equity-chart" height="300"
+           preserveAspectRatio="none" role="img"
+           aria-label="Equity curve against an equal-weight benchmark"></svg>
+      <div class="legend" id="equity-legend"></div>
+    </div>
+  </section>
+
+  <!-- drawdown -->
+  <section>
+    <div class="section-head"><h2 class="headline">Drawdown</h2></div>
+    <div class="card">
+      <svg class="chart" id="dd-chart" height="160" preserveAspectRatio="none"
+           role="img" aria-label="Drawdown from the running peak"></svg>
+    </div>
+  </section>
+
+  <!-- comparison -->
+  <section>
+    <div class="section-head">
+      <h2 class="headline">All sleeves</h2>
+      <span class="caption tertiary">Every strategy saw the same bars and paid the same frictions.</span>
+    </div>
+    <div class="card flush">
+      <div class="table-wrap">
+        <table class="data" id="compare-table">
+          <thead><tr>
+            <th class="name">Strategy</th><th>Return</th><th>CAGR</th>
+            <th>Sharpe</th><th>t</th><th>Max DD</th><th>Trades</th>
+            <th>Hit rate</th><th>Fill rate</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- trades -->
+  <section>
+    <div class="section-head">
+      <h2 class="headline">Trade log</h2>
+      <span class="caption tertiary" id="trade-count"></span>
+    </div>
+    <div class="card flush">
+      <div class="table-wrap scroll-y">
+        <table class="data" id="trade-table">
+          <thead><tr>
+            <th>When</th><th class="name">Symbol</th><th>Action</th><th>Side</th>
+            <th>Qty</th><th>Price</th><th>P&amp;L</th><th class="wrap">Reason</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- decisions not taken -->
+  <section>
+    <div class="section-head">
+      <h2 class="headline">Decisions and rejections</h2>
+      <span class="caption tertiary">What the strategy declined to do, and why.</span>
+    </div>
+    <div class="card">
+      <div class="log scroll-y" id="decision-log">
+        <div class="empty">Nothing logged.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- how it was run -->
+  <section>
+    <div class="section-head"><h2 class="headline">Run configuration</h2></div>
+    <div class="card">
+      <div class="grid two">
+        <div><div class="overline" style="margin-bottom:var(--s4)">Data</div>
+          <div class="log" id="config-data"></div></div>
+        <div><div class="overline" style="margin-bottom:var(--s4)">Frictions</div>
+          <div class="log" id="config-costs"></div></div>
+      </div>
+    </div>
+  </section>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>Lab.result({{ job_id | tojson }});</script>
+{% endblock %}

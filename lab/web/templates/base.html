@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}strategy-lab{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='lab.css') }}">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%236E8BFF'/><path d='M8 22 L14 12 L18 18 L24 9' stroke='%2315171C' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+</head>
+<body>
+
+<header class="bar">
+  <a class="brand" href="{{ url_for('console') }}">
+    <span>strategy<span class="mark">-lab</span></span>
+    <span class="caption tertiary">backtesting platform</span>
+  </a>
+  <nav>
+    <a href="{{ url_for('console') }}" {% if request.endpoint == 'console' %}class="on"{% endif %}>Console</a>
+    <a href="#" id="theme-toggle" class="caption" title="Switch theme">Theme</a>
+  </nav>
+</header>
+
+<main>
+  {% block content %}{% endblock %}
+</main>
+
+<script src="{{ url_for('static', filename='lab.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

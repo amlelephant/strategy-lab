@@ -1,0 +1,17 @@
+# strategy-lab
+#
+# Deliberately short. No charting library (charts are hand-rolled SVG), no
+# backtesting library (that is what this repository is), no front-end build
+# step. See CLAUDE.md before adding anything here.
+
+pandas>=2.0
+numpy>=1.24
+scipy>=1.10           # expected-maximum calculation in the sweep verdict
+statsmodels>=0.14     # ADF / MacKinnon critical values, ECM regression
+flask>=3.0            # the GUI
+
+# Optional — only `python run.py fetch` imports it, never a backtest.
+yfinance>=0.2
+
+# Development
+pytest>=8.0

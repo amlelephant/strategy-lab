@@ -1,0 +1,37 @@
+# ── secrets ──────────────────────────────────────────────────────────────
+.env
+*.pem
+*.key
+
+# ── bulk data ────────────────────────────────────────────────────────────
+# Price and fundamental dumps run to tens of megabytes and are regenerable.
+# The directory structure is tracked so a clone still knows where they go.
+data/*
+!data/.gitkeep
+!data/README.md
+
+# ── generated ────────────────────────────────────────────────────────────
+runs/
+*.png
+!docs/**/*.png
+
+# ── python ───────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+venv/
+.venv/
+env/
+
+# ── editors and os ───────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini

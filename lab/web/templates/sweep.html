@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Sweep {{ job_id }} — strategy-lab{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1 class="title">{{ job.label or 'Parameter sweep' }}</h1>
+  <p>A grid search reports its best result, and the best of many tries is
+     mostly a measurement of how many tries you had. The verdict below is the
+     part that matters.</p>
+</div>
+
+<section id="running" style="margin-top:0">
+  <div class="card">
+    <div class="overline" style="margin-bottom: var(--s4)">Running</div>
+    <div class="progress"><i id="progress-bar"></i></div>
+    <div class="caption secondary" id="progress-stage" style="margin-top: var(--s4)">queued</div>
+  </div>
+</section>
+
+<section id="failed" hidden>
+  <div class="notice bad">
+    <div><strong>The sweep failed.</strong>
+      <div class="mono" id="error-text" style="margin-top: var(--s3)"></div></div>
+  </div>
+</section>
+
+<div id="result" hidden>
+  <section style="margin-top:0">
+    <div class="card">
+      <div class="overline">Best Sharpe in the grid</div>
+      <div class="hero" id="hero-sharpe">—</div>
+      <div class="callout secondary" id="verdict" style="margin-top: var(--s4); max-width: 68ch"></div>
+
+      <div class="divider"></div>
+
+      <div class="grid four">
+        <div class="stat"><span class="overline">Trials</span>
+          <span class="value" id="stat-trials">—</span>
+          <span class="sub">parameter combinations run</span></div>
+        <div class="stat"><span class="overline">Noise floor</span>
+          <span class="value" id="stat-noise">—</span>
+          <span class="sub">expected best from pure chance</span></div>
+        <div class="stat"><span class="overline">Deflated</span>
+          <span class="value" id="stat-deflated">—</span>
+          <span class="sub">best, minus the multiple-testing haircut</span></div>
+        <div class="stat"><span class="overline">Plateau</span>
+          <span class="value" id="stat-plateau">—</span>
+          <span class="sub">of the grid within 20% of the best</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2 class="headline">The grid</h2>
+      <span class="caption tertiary">Ranked by Sharpe. Read the spread, not the top row.</span>
+    </div>
+    <div class="card flush">
+      <div class="table-wrap scroll-y">
+        <table class="data" id="grid-table">
+          <thead><tr></tr></thead><tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>Lab.sweep({{ job_id | tojson }});</script>
+{% endblock %}

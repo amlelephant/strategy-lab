@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal, InvalidOperation
 from enum import Enum
 from typing import Any, ClassVar, Iterable, Mapping, Sequence
 
@@ -229,10 +230,57 @@ class Param:
     def sweep_values(self) -> tuple[Any, ...]:
         return self.grid if self.grid else (self.default,)
 
+    # ── HTML-safe bounds ───────────────────────────────────────────────
+    #
+    # An `<input type="number">` takes its **step base from `min`**, so the
+    # values it accepts are `min, min+step, min+2·step, …`. A triple like
+    # `low=0.01, step=0.05, default=0.9` therefore describes a field that
+    # rejects its own default: 0.9 is 17.8 steps above 0.01, and the browser
+    # says "please enter a valid value" before the form is ever submitted.
+    #
+    # Rather than requiring every author to keep `low`, `step` and `default`
+    # mutually consistent — a rule nobody will remember — the two properties
+    # below re-anchor the grid on `default` and move the bounds inward to the
+    # nearest grid points. The browser then only ever offers values the field
+    # accepts, and `coerce()` still enforces the true `low`/`high` server-side.
+    #
+    # Decimal, not float: `0.9 - 17 * 0.05` is `0.04999999999999993`, and
+    # emitting that as `min` reintroduces the same mismatch it is fixing.
+
+    def _grid_bound(self, bound: float | None, upward: bool) -> float | None:
+        if bound is None:
+            return None
+        if self.step is None or self.step <= 0 or self.kind is ParamKind.CHOICE:
+            return bound
+        try:
+            default = Decimal(str(self.default))
+            step = Decimal(str(self.step))
+            span = (Decimal(str(bound)) - default) / step
+        except (InvalidOperation, TypeError, ValueError):
+            return bound
+        # Floor the magnitude in both directions: the bound moves toward the
+        # default, never away from it, so the browser can never offer a value
+        # the server would reject.
+        steps = span.to_integral_value(rounding=ROUND_CEILING if upward
+                                       else ROUND_FLOOR)
+        snapped = default + steps * step
+        return float(snapped.normalize())
+
+    @property
+    def html_min(self) -> float | None:
+        """`low`, raised to the first step-grid point at or above it."""
+        return self._grid_bound(self.low, upward=True)
+
+    @property
+    def html_max(self) -> float | None:
+        """`high`, lowered to the last step-grid point at or below it."""
+        return self._grid_bound(self.high, upward=False)
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "name": self.name, "default": self.default, "kind": self.kind.value,
             "low": self.low, "high": self.high, "step": self.step,
+            "html_min": self.html_min, "html_max": self.html_max,
             "choices": list(self.choices), "help": self.help,
             "grid": list(self.grid),
         }

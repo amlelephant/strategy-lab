@@ -49,10 +49,13 @@
                     {% endfor %}
                   </select>
                 {% else %}
+                  {# html_min / html_max, not low / high: the browser anchors
+                     its step grid on `min`, so the bounds must sit on the
+                     same grid as the default. See Param._grid_bound. #}
                   <input type="number" data-param="{{ p.name }}"
                          value="{{ p.default }}"
-                         {% if p.low is not none %}min="{{ p.low }}"{% endif %}
-                         {% if p.high is not none %}max="{{ p.high }}"{% endif %}
+                         {% if p.html_min is not none %}min="{{ p.html_min }}"{% endif %}
+                         {% if p.html_max is not none %}max="{{ p.html_max }}"{% endif %}
                          step="{{ p.step or 'any' }}">
                 {% endif %}
                 {% if p.help %}<span class="hint">{{ p.help }}</span>{% endif %}
@@ -162,8 +165,10 @@
               option. Kept only for comparison with the older scripts.</span>
           </label>
           <div class="fields two">
+            {# step 1000, not 10000: the browser's step grid starts at `min`,
+               so min=1000 with step=10000 makes 100000 an invalid value. #}
             <label class="field"><span>Starting cash</span>
-              <input type="number" name="starting_cash" value="100000" step="10000" min="1000"></label>
+              <input type="number" name="starting_cash" value="100000" step="1000" min="1000"></label>
             <label class="field"><span>Seed</span>
               <input type="number" name="seed" value="7" step="1"></label>
           </div>

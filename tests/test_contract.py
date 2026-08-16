@@ -19,7 +19,7 @@ import pandas as pd
 import pytest
 
 from lab import Hub, RunConfig, all_strategies, build, synthetic
-from lab.core.contract import Intent, MarketContext, Order, Side
+from lab.core.contract import Intent, MarketContext, Order, ParamKind, Side
 from lab.data.dataset import Dataset
 
 STRATEGY_KEYS = sorted(all_strategies())
@@ -187,6 +187,57 @@ def test_cannot_see_the_future(key, prices, with_fundamentals):
 def test_rejects_unknown_parameters(key):
     with pytest.raises(TypeError):
         build(key, {"definitely_not_a_real_parameter": 1})
+
+
+@pytest.mark.parametrize("key", STRATEGY_KEYS)
+def test_form_bounds_accept_the_default(key):
+    """A number input must not reject its own starting value.
+
+    `<input type="number">` takes its step base from `min`, so it only accepts
+    `min + k·step`. A parameter declared `low=0.01, step=0.05, default=0.9`
+    renders a field the browser refuses before the form is ever submitted —
+    which is exactly what happened with `position_fraction`. `html_min` and
+    `html_max` re-anchor the grid on the default; this asserts they did.
+    """
+    from decimal import Decimal
+
+    for param in all_strategies()[key].params:
+        if param.step is None or param.kind not in (ParamKind.INT,
+                                                    ParamKind.FLOAT):
+            continue
+        low, high = param.html_min, param.html_max
+        step = Decimal(str(param.step))
+        default = Decimal(str(param.default))
+
+        for name, bound in (("html_min", low), ("html_max", high)):
+            if bound is None:
+                continue
+            offset = (Decimal(str(bound)) - default) / step
+            assert offset == offset.to_integral_value(), (
+                f"{key}.{param.name}: {name}={bound} is {offset} steps from "
+                f"default={param.default} — the browser will reject the default")
+
+        if low is not None:
+            assert low >= param.low, (
+                f"{key}.{param.name}: html_min {low} is below the declared "
+                f"low {param.low}; the form would offer values coerce() rejects")
+            assert low <= param.default
+        if high is not None:
+            assert high <= param.high, (
+                f"{key}.{param.name}: html_max {high} exceeds the declared "
+                f"high {param.high}")
+            assert high >= param.default
+
+
+@pytest.mark.parametrize("key", STRATEGY_KEYS)
+def test_default_survives_a_round_trip_through_a_form(key):
+    """Defaults arrive back from HTML as strings. They must still coerce."""
+    cls = all_strategies()[key]
+    as_text = {p.name: ("on" if p.default else "") if p.kind is ParamKind.BOOL
+               else str(p.default) for p in cls.params}
+    rebuilt = build(key, as_text)
+    for param in cls.params:
+        assert getattr(rebuilt, param.name) == param.coerce(param.default)
 
 
 # ── the contract objects themselves ───────────────────────────────────────

@@ -18,18 +18,43 @@ reason.
 
 | Screen | The question it answers |
 |---|---|
-| `/` Console | What do I want to test? |
-| `/run/<id>` Result | Did it work? |
-| `/strategy/<key>` | What is this algorithm claiming? |
+| `/` Home | What have I built? |
+| `/strategy/<key>` | Where does this one live, and what happens if I run it? |
+| `/run/<id>` Result | Did it beat the market? |
+| `/showcase` | What does this body of work add up to? |
 
 If a screen starts answering a second question, the second one moves. This is
 the most important rule; most clutter is a violation of it.
 
-The result page's answer to "did it work?" is a **Sharpe ratio at 84px with its
-t-statistic directly beneath it**. Not the return. Return is the number
-everybody reaches for and it is the one that tells you least — a 78% return
-over four years is meaningless without knowing what the market did and how many
-independent observations produced it. Both of those are one line below.
+Home is a wall of cards and nothing else — one per strategy, each showing the
+path to its file. It is a table of contents, not a dashboard, and it does not
+try to also be a run list or a results summary.
+
+### The hero number is alpha
+
+The result page's answer is **annualised alpha at 84px, with its t-statistic
+directly beneath it**. Not the return, and not the Sharpe.
+
+Return is the number everybody reaches for and tells you least: +78% over four
+years is meaningless without knowing what the market did. Sharpe is the usual
+correction and is still not the question — a long-only strategy in a rising
+market inherits the market's Sharpe and can look skilful having added nothing.
+Alpha is what is left after the benchmark's movement is regressed out, and it
+is the only one of the three that answers "was running this better than not
+bothering?". Sharpe keeps a stat tile, always with its t and its n.
+
+### Parameters have no screen, and no control, anywhere
+
+A `Param`'s value is a fact about a strategy's *code*, not about a particular
+run. A browser that can change one makes the file stop being the answer to
+"what does this strategy do?" So the strategy screen offers exactly what
+belongs to a run — which data, which universe, which frictions — and links to
+the file for everything else. Choosing a value, or sweeping a grid of them, is
+`lab.api`, called from the strategy's own `__main__` block.
+
+This is enforced, not just documented: the web layer strips `params` from
+every strategy description it serves, and a test walks every form control on
+every page and fails if one is bound to a parameter name.
 
 ## 2. Color
 
@@ -96,7 +121,7 @@ Inter, with a system fallback stack. **Every number that represents data uses
 | body | 17 / 400 | Prose |
 | `.callout` | 15 / 500 | Secondary controls, form values |
 | `.caption` | 13 / 500 | Metadata |
-| `.overline` | 12 / 600, +0.06em, uppercase | Micro-labels (SHARPE RATIO, TOTAL RETURN) |
+| `.overline` | 12 / 600, +0.06em, uppercase | Micro-labels (ALPHA, ANNUALISED · BETA) |
 
 **One hero per screen.** Never more than about four type styles on one screen.
 Uppercase only for `.overline`.
@@ -107,6 +132,13 @@ Uppercase only for `.overline`.
 gaps between sections `--s8`–`--s9`.
 
 Radii are generous: 8 / 10 / 12 / 16 / 24 / full. Primary buttons are pills.
+
+**Buttons are 38px tall with 14px/600 text**, and the rule lists every variant
+(`button, .btn, .btn-primary, .btn-secondary, .btn-quiet`) rather than just
+`button, .btn`. An `<a class="btn-primary">` matches neither of the latter two,
+so for a while every button that was really a link — footer bars, error pages —
+rendered at the body's 17px with no padding. If you add a variant, add it to
+that selector list.
 
 Motion is 120 / 180 / 240ms on `cubic-bezier(0.22, 1, 0.36, 1)`, and exists
 only to communicate a state change. Nothing loops, nothing bounces.
@@ -144,8 +176,8 @@ Calm and specific. No exclamation marks, no emoji, no marketing adjectives.
 The interface's job is partly to stop the user over-reading a result, so the
 words do real work:
 
-> t = 1.5 over 1,125 observations — **not distinguishable from luck** on this
-> sample.
+> +7.06% a year over the benchmark, but t = 1.4 — **not distinguishable** from
+> holding the same names.
 
 Not "moderate confidence". Not "promising". The empty state on the decision log
 reads "Nothing logged — this strategy took every signal it generated", which is

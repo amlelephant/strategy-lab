@@ -33,6 +33,12 @@ for stream in (sys.stdout, sys.stderr):
 
 from lab import Hub, attach_fundamentals, build, load_prices  # noqa: E402
 from lab.analysis import engle_granger, prefilter             # noqa: E402
+# stat_arb and bw_valuation are retired from the showcase (see
+# lab/strategies/__init__.py) and so are not in the registry `build()` reads
+# from. They are unchanged on disk and importing the class directly, instead
+# of by key, still works — that is what the two functions below do.
+from lab.strategies.bw_valuation import BWValuation             # noqa: E402
+from lab.strategies.stat_arb import StatArb                     # noqa: E402
 
 PRICES = ROOT / "data" / "prices.pkl"
 FUNDAMENTALS = ROOT / "data" / "fundamentals_simfin.json"
@@ -115,11 +121,11 @@ def screen() -> None:
     print("\n── Cointegration screen on stat_arb ─────────────────────────\n")
 
     dataset = load_prices(PRICES).for_universe(PAIRS)
-    unscreened = build("stat_arb")
-    screened = build("stat_arb", {"require_cointegration": True})
+    unscreened = StatArb()
+    screened = StatArb(require_cointegration=True)
     screened.title = "Statistical Arbitrage (cointegration-screened)"
 
-    result = Hub(dataset, [unscreened, screened, build("buy_and_hold")]).run()
+    result = Hub(dataset, [unscreened, screened]).run()
     print(_table(result))
 
     rejected = len(result.sleeves[1].messages)
@@ -139,10 +145,9 @@ def directions() -> None:
     corrected = build("bw_cross_sectional")
     legacy = build("bw_cross_sectional", {"legacy_directions": True})
     legacy.title = "BW cross-sectional (original, inverted directions)"
-    anchors = build("bw_valuation")
+    anchors = BWValuation()
 
-    result = Hub(dataset, [corrected, legacy, anchors,
-                           build("buy_and_hold")]).run()
+    result = Hub(dataset, [corrected, legacy, anchors]).run()
     print(_table(result))
 
 

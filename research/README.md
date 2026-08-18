@@ -13,6 +13,7 @@ write-ups are the only place that distinction is visible.
 | [`findings.md`](findings.md) | Defects found by checking implementations against the sources they claimed to follow, each one quantified |
 | [`ported-changes.md`](ported-changes.md) | Every place a port changed the original's behaviour, and why |
 | [`results.md`](results.md) | Current headline numbers, with the reasons not to trust them |
+| [`strategies/`](strategies/) | One write-up per strategy — the claim, what was measured, what it doesn't establish. Rendered on that strategy's own GUI page if present; optional, so a strategy without one just shows its params table |
 
 ## The standing rule
 

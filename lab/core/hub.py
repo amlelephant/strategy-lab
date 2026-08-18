@@ -41,7 +41,9 @@ import pandas as pd
 from ..data.dataset import Dataset
 from .contract import (HOLD, Intent, MarketContext, Order, Side, Strategy)
 from .costs import CostModel, FillTiming
-from .metrics import Performance, benchmark_equity, summarise
+from .metrics import (BENCHMARK_LABEL, Performance, alpha, benchmark_equity,
+                      benchmark_label, has_market_benchmark, summarise,
+                      universe_equity)
 from .portfolio import Fill, InsufficientCash, Portfolio
 
 
@@ -126,14 +128,30 @@ class RunResult:
     sleeves: list[SleeveResult]
     benchmark: pd.Series
     benchmark_performance: Performance
+    #: Equal-weight frictionless hold of the run's own universe. An overlay the
+    #: result page can switch on, not something anything is measured against.
+    universe: pd.Series
     combined: pd.Series
     combined_performance: Performance
     elapsed_seconds: float
     warnings: list[str] = field(default_factory=list)
+    #: What `benchmark` actually is — the market when the dataset carried one,
+    #: the equal-weight fallback otherwise. Carried on the result rather than
+    #: read from a module constant so a chart, a table and a Performance
+    #: cannot disagree about which yardstick produced the alpha beside them.
+    benchmark_label: str = BENCHMARK_LABEL
 
     def best(self) -> SleeveResult | None:
+        """The sleeve that beat the benchmark by the most.
+
+        Ranked on `active_return`, not alpha and not Sharpe. Alpha divided by a
+        near-zero beta rewards market-neutral sleeves for making any money at
+        all, which would rank a book returning 3% above one returning 15% in a
+        year the index did 16%."""
         finished = [s for s in self.sleeves if s.performance.observations]
-        return max(finished, key=lambda s: s.performance.sharpe, default=None)
+        return max(finished, key=lambda s: (s.performance.active_return
+                                            if s.performance.active_return == s.performance.active_return
+                                            else float("-inf")), default=None)
 
     def table(self) -> pd.DataFrame:
         """One row per sleeve — the summary the CLI prints."""
@@ -142,15 +160,19 @@ class RunResult:
             p = sleeve.performance
             rows.append({
                 "strategy": sleeve.title,
-                "return": p.total_return, "cagr": p.cagr, "sharpe": p.sharpe,
-                "t": p.sharpe_t, "max_dd": p.max_drawdown,
+                "return": p.total_return, "cagr": p.cagr,
+                "vs_bench": p.active_return,
+                "alpha": p.alpha, "alpha_t": p.alpha_t, "beta": p.beta,
+                "sharpe": p.sharpe, "t": p.sharpe_t, "max_dd": p.max_drawdown,
                 "trades": p.round_trips, "hit": p.hit_rate,
                 "costs": p.total_commission + p.total_slippage,
             })
         bench = self.benchmark_performance
         rows.append({
-            "strategy": "— equal-weight universe —",
+            "strategy": f"— {self.benchmark_label} —",
             "return": bench.total_return, "cagr": bench.cagr,
+            "vs_bench": float("nan"),
+            "alpha": float("nan"), "alpha_t": float("nan"), "beta": 1.0,
             "sharpe": bench.sharpe, "t": bench.sharpe_t,
             "max_dd": bench.max_drawdown, "trades": 0,
             "hit": float("nan"), "costs": 0.0,
@@ -165,9 +187,13 @@ class RunResult:
             "warnings": self.warnings,
             "sleeves": [s.to_dict(curve_points) for s in self.sleeves],
             "benchmark": {
-                "label": "Equal-weight universe",
+                "label": self.benchmark_label,
                 "equity": _downsample(self.benchmark, curve_points),
                 "performance": self.benchmark_performance.as_dict(),
+            },
+            "universe": {
+                "label": "Underlying assets, equal weight",
+                "equity": _downsample(self.universe, curve_points),
             },
             "combined": {
                 "equity": _downsample(self.combined, curve_points),
@@ -187,10 +213,20 @@ def _downsample(series: pd.Series, points: int) -> list[list[Any]]:
     return [[ts.isoformat(), round(float(v), 2)] for ts, v in series.items()]
 
 
-def _trade_rows(log: pd.DataFrame, limit: int = 500) -> list[dict[str, Any]]:
+def _trade_rows(log: pd.DataFrame) -> list[dict[str, Any]]:
+    """Every fill, not a sample of them.
+
+    This used to cap at the first 500 — chronological order, so on any run
+    with more fills than that, everything after the cap was silently
+    unreachable, on the page and in the saved run file alike. A trade near
+    the end of a five-year backtest (which is exactly where an anomaly is
+    likely to be worth looking at) was invisible no matter how hard anyone
+    looked at the UI. The result page paginates the rendering; the data
+    itself is complete.
+    """
     if log.empty:
         return []
-    frame = log.head(limit).copy()
+    frame = log.copy()
     frame["timestamp"] = frame["timestamp"].astype(str)
     return frame.replace({np.nan: None}).to_dict("records")
 
@@ -566,39 +602,74 @@ class Hub:
         index = dataset.index
         results: list[SleeveResult] = []
 
+        # The benchmark comes first: every sleeve is measured against it, not
+        # just plotted next to it. "Did this beat owning the market?" is the
+        # question, and a Performance without an alpha cannot answer it.
+        benchmark = benchmark_equity(dataset, config.starting_cash)
+        universe = universe_equity(dataset, config.starting_cash)
+        label = benchmark_label(dataset)
+        ppy = dataset.periods_per_year
+        # Sharpe and alpha are both defined on returns in excess of this.
+        rf = getattr(dataset, "risk_free", None)
+
+        if rf is None:
+            self.warnings.append(
+                "No risk-free rate attached, so Sharpe and alpha assume cash "
+                "pays nothing. That hands every strategy rf x (1 - beta) of "
+                "alpha it did not earn, and the effect is largest for "
+                "strategies that hold cash. `python run.py fetch-market` "
+                "writes data/riskfree_3m.csv.")
+
+        # A fallback benchmark is still a benchmark, but it answers a weaker
+        # question and the reader has to be told which one they are reading.
+        if not has_market_benchmark(dataset):
+            self.warnings.append(
+                f"No market series attached, so alpha is measured against "
+                f"{label} rather than the S&P 500 — it says whether this beat "
+                f"holding its own universe, not whether it beat the market. "
+                f"`python run.py fetch-market` writes data/market_spy.csv.")
+
         for sleeve in sleeves:
             equity = pd.Series(sleeve.equity, index=index[:len(sleeve.equity)])
             exposure = pd.Series(sleeve.exposure, index=equity.index)
             log = sleeve.portfolio.trade_log()
+            performance = summarise(equity, periods_per_year=ppy,
+                                    trade_log=log, exposure=exposure,
+                                    risk_free=rf)
+            alpha(performance, equity, benchmark, periods_per_year=ppy,
+                  label=label, risk_free=rf)
             results.append(SleeveResult(
                 key=sleeve.strategy.key,
                 title=sleeve.strategy.title or type(sleeve.strategy).__name__,
                 params=dict(sleeve.strategy.settings),
                 equity=equity, exposure=exposure, trade_log=log,
-                performance=summarise(
-                    equity, periods_per_year=dataset.periods_per_year,
-                    trade_log=log, exposure=exposure),
+                performance=performance,
                 messages=sleeve.messages, rejections=sleeve.rejections,
                 orders_requested=sleeve.requested, orders_filled=sleeve.filled))
 
         _disambiguate(results)
 
-        benchmark = benchmark_equity(dataset, config.starting_cash)
         combined = sum((r.equity for r in results[1:]), results[0].equity) \
             if results else pd.Series(dtype=float)
+        combined_performance = summarise(combined, periods_per_year=ppy,
+                                         risk_free=rf)
+        if len(combined):
+            alpha(combined_performance, combined, benchmark,
+                  periods_per_year=ppy, label=label, risk_free=rf)
 
         return RunResult(
             dataset=dataset.describe(),
             config=config.describe(),
             sleeves=results,
             benchmark=benchmark,
-            benchmark_performance=summarise(
-                benchmark, periods_per_year=dataset.periods_per_year),
+            benchmark_performance=summarise(benchmark, periods_per_year=ppy,
+                                            risk_free=rf),
+            universe=universe,
             combined=combined,
-            combined_performance=summarise(
-                combined, periods_per_year=dataset.periods_per_year),
+            combined_performance=combined_performance,
             elapsed_seconds=elapsed,
-            warnings=self.warnings)
+            warnings=self.warnings,
+            benchmark_label=label)
 
 
 def _disambiguate(results: list[SleeveResult]) -> None:

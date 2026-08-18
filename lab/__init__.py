@@ -3,7 +3,15 @@ strategy-lab
 ============
 A testing platform for systematic trading strategies.
 
-The whole surface, in five lines:
+The whole surface, in two lines:
+
+    from lab import backtest, sweep
+
+    backtest("stat_arb", symbols="KO,PEP")
+    sweep("mean_reversion", symbols="KO,PEP", sma_window=[10, 20, 30])
+
+That is `lab.api`, and it is the only place a parameter is chosen — the GUI
+has no control for one, by design. Underneath it, the framework proper:
 
     from lab import Hub, RunConfig, load_prices, build
 
@@ -24,7 +32,8 @@ from .core import (HOLD, SCENARIOS, CostModel, FillTiming, Hub, LatencyModel,
                    Universe, all_strategies, build, describe_all, get,
                    register, run_sweep, summarise)
 from .data import (Dataset, attach_fundamentals, catalog, fetch_yfinance,
-                   load_fundamentals, load_prices, synthetic)
+                   load_fundamentals, load_prices)
+from .api import backtest, sweep
 
 # Importing the package must register the strategies, or `build("stat_arb")`
 # fails for anyone who has not separately imported lab.strategies.
@@ -39,5 +48,6 @@ __all__ = [
     "RunConfig", "RunResult", "Side", "Strategy", "Universe",
     "all_strategies", "build", "describe_all", "get", "register", "run_sweep",
     "summarise", "Dataset", "attach_fundamentals", "catalog", "fetch_yfinance",
-    "load_fundamentals", "load_prices", "synthetic", "strategies",
+    "load_fundamentals", "load_prices", "strategies",
+    "backtest", "sweep",
 ]

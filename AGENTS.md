@@ -29,7 +29,7 @@ hub  ◀─── list[Order]   (what to do about it)     ────
 
 ## 2. The shortest complete strategy
 
-Copy this. It is `lab/strategies/buy_and_hold.py` with the prose removed.
+Copy this. It is a complete, registered strategy.
 
 ```python
 from ..core.contract import (HOLD, MarketContext, Order, Param, ParamKind,
@@ -61,6 +61,13 @@ class MyStrategy(Strategy):
                 orders.append(Order.open(symbol, Side.LONG, 100,
                                          reason="price below threshold"))
         return orders or HOLD
+
+
+if __name__ == "__main__":
+    from ..api import backtest, sweep
+
+    backtest(MyStrategy, symbols="KO,PEP")
+    # sweep(MyStrategy, symbols="KO,PEP", threshold=[1.5, 2.0, 2.5])
 ```
 
 Then add one line to `lab/strategies/__init__.py`:
@@ -69,11 +76,18 @@ Then add one line to `lab/strategies/__init__.py`:
 from .my_strategy import MyStrategy
 ```
 
-That is the entire integration. The CLI, the GUI form, the parameter sweep and
-the contract tests all pick it up from the registry. **Do not edit anything
-else** — if you find yourself changing the hub, the templates or the JS to add
-a strategy, stop: the contract is supposed to make that unnecessary, and if it
+That is the entire integration. The CLI, the GUI, the parameter sweep and the
+contract tests all pick it up from the registry. **Do not edit anything else**
+— if you find yourself changing the hub, the templates or the JS to add a
+strategy, stop: the contract is supposed to make that unnecessary, and if it
 does not, that is a framework bug worth reporting rather than routing around.
+
+The `__main__` block is not boilerplate to trim. `python -m
+lab.strategies.my_strategy` is how this strategy gets run while you are
+writing it, and — because the GUI has no parameter control anywhere — it is
+the **only** way to try a parameter value other than editing the default.
+See §6.5.
+
 
 ---
 
@@ -85,9 +99,37 @@ does not, that is a framework bug worth reporting rather than routing around.
 | `title` | yes | Human name for the GUI. |
 | `universe` | yes | `Universe.SINGLE`, `.PAIR`, or `.CROSS_SECTION`. Metadata — it tells the GUI how to help pick a universe; the hub treats every strategy identically. |
 | `summary` | yes | One sentence naming the claimed edge. |
-| `notes` | no | A paragraph for the strategy's own page. What to compare it against, what would falsify it. |
-| `provenance` | no | Where the code came from, if it predates the platform. |
+| `notes` | no | A paragraph of maintainer's notes on the class. What to compare it against, what would falsify it. Not rendered in the GUI. |
+| `provenance` | no | Where the code came from, if it predates the platform. Not rendered in the GUI. |
+| `default_data` | no | Price file under `data/` this strategy is *for*, e.g. `"market_spy.csv"`. Seeds the form's Prices control. |
+| `default_symbols` | no | Universe it is *for*, as form text, e.g. `"SPY"`. Seeds the Symbols box. |
 | `params` | no | `tuple[Param, ...]`. **No magic numbers in the body.** |
+
+### `default_data` / `default_symbols` are not parameters
+
+They seed a form; nothing reads them during a run and the hub never sees them.
+That is what makes them legal where a `Param` is not — the GUI owns what
+belongs to a *run* (which data, which universe, which frictions), and a
+default is just where those controls start. The page stays free to change
+them, and changing one on the page is exactly as legitimate as typing a
+ticker.
+
+Declare them whenever the strategy is only meaningful on particular data.
+`hundred_day_mov_avg` times *the market*; opened on four consumer-staples
+names it measures whether those four firms trended, which is a different
+question, and single-name moves swamp the index momentum the rule reads. A
+strategy that works on anything should leave both empty.
+
+### The optional write-up
+
+Drop `research/strategies/<key>.md` and it renders as a "Research" section on
+the strategy's GUI page, above the params table — no code change, no route to
+add. `lab/web/markdown.py` renders it; a small hand-rolled subset (headings,
+bold, inline code, fenced code, pipe tables, lists, links), not a dependency.
+Use it for the write-up `notes` is too short for: the numbers, what a screen
+or filter cost or gained, what the result doesn't establish. A strategy
+without one just shows its params table — the file is optional in both
+directions.
 
 ### `Param`
 
@@ -103,6 +145,15 @@ Param(name, default, kind, low=None, high=None, step=None,
   own best result less meaningful.
 * Parameters arrive as `self.<name>`, already coerced and range-checked.
   `MyStrategy(threshold=3)` leaves `self.threshold == 3.0`.
+
+**Parameters never appear in the browser.** Not as a control, not as a table,
+not in any JSON the web app serves. A `Param` value is a fact about this file;
+the moment a form can change one, the file stops being the answer to "what
+does this strategy do?", and two runs of "the same" strategy stop being
+comparable. The GUI offers what belongs to a *run* — which data, which
+universe, which frictions — and links to the file for the rest. A test
+(`test_no_parameter_is_reachable_through_the_interface`) enforces this, so a
+template loop over `strategy.params` fails the suite rather than shipping.
 
 ---
 
@@ -263,6 +314,44 @@ its own fill price could name a good one.
 
 ---
 
+## 6.5 Running what you wrote — `lab.api`
+
+Three functions, meant to be called from the bottom of the file you are
+editing. This is where parameters are chosen; the GUI has no control for one.
+
+```python
+from lab import backtest, sweep        # or `from ..api import ...` inside a strategy
+
+backtest(MyStrategy, symbols="KO,PEP")                    # as the file declares it
+backtest(MyStrategy, symbols="KO,PEP", start="2021-01-04")  # a date range
+backtest(MyStrategy, symbols="KO,PEP", threshold=3.0)     # one knob, one run
+sweep(MyStrategy, symbols="KO,PEP", threshold=[1.5, 2.0, 2.5])
+```
+
+| Argument | Default | What it is |
+|---|---|---|
+| `data` | `"prices.pkl"` | a real price file under `data/`, or a path. There is no generated option |
+| `symbols` | none | `"KO,PEP"` or `["KO","PEP"]`; pair strategies take them two at a time |
+| `fundamentals` | none | fundamentals JSON under `data/` |
+| `all_with_fundamentals` | `False` | use every company that has filed — for cross-sectional work |
+| `start`, `end` | none | trim the date range |
+| `scenario` | `"realistic"` | `frictionless` · `optimistic` · `realistic` · `conservative` |
+| `timing` | `"next_open"` | or `"close"`, which is a free option and known to flatter |
+| `cash`, `seed` | `100_000`, `7` | |
+| anything else | — | a strategy parameter (a list of them, for `sweep`) |
+
+Both return the same objects the framework uses (`RunResult`, `SweepResult`)
+and print a table; pass `show=False` for the object alone. Run the file with
+**`python -m lab.strategies.my_strategy`** — as a module, so its relative
+imports resolve.
+
+A sweep prints and does not persist. Its output is a table of parameter
+values, which is a thing to read beside the code that produced it, not to
+publish on a page — and the best Sharpe out of *n* tries is mostly a
+measurement of *n*. Read `verdict()`, not row one.
+
+---
+
 ## 7. Rules that are not style preferences
 
 1. **No I/O in `on_bar`.** No network, no disk, no clock, no unseeded RNG.
@@ -282,11 +371,24 @@ its own fill price could name a good one.
 
 ## 8. Reading a result
 
+**The headline is `active_return`** — annualised (strategy − benchmark), where
+the benchmark is the S&P 500. Whether the strategy ended with more money than
+simply owning the index. Everything else qualifies that number.
+
+`alpha` is secondary and must never be read on its own. It is the return *per
+unit of market risk taken*, so dividing by a small beta makes it large for
+anything that made money without market exposure: a market-neutral book earning
+3% while the index earned 16% has a beta of 0.00 and an alpha of +3%. Report it
+beside its beta or not at all, and do not call a strategy that trailed the index
+"alpha-generating" — `Performance.has_alpha` requires beating the benchmark as
+well as clearing the t-test, for exactly this reason.
+
 The hub reports Sharpe, return and max drawdown like everything else. It also
 reports `observations`, `sharpe_stderr` and `sharpe_t`, and the GUI puts the
 t-statistic directly under the hero number. Below about |t| = 2, **the result
 is not distinguishable from luck** and should be described that way, not as a
-smaller version of a real result.
+smaller version of a real result. Sharpe and alpha are both measured in excess
+of the risk-free rate (`data/riskfree_3m.csv`), not over zero.
 
 For parameter sweeps, `SweepResult.verdict()` compares the best Sharpe against
 what the same number of random tries would produce on noise. If it does not
@@ -299,19 +401,22 @@ good one; it is the more common one and it is still information.
 
 ```bash
 python -m pytest tests/ -q                    # everything, including contract tests
+python -m lab.strategies.my_strategy          # the file's own __main__ block
 python run.py backtest my_strategy --symbols "KO,PEP"
-python run.py backtest my_strategy buy_and_hold --symbols "KO,PEP"   # vs the control
+python run.py backtest my_strategy --symbols "KO,PEP"
 ```
 
-`tests/test_contract.py` runs **every registered strategy** through a synthetic
-dataset and asserts the contract holds — valid orders, no lookahead, no
+`tests/test_contract.py` runs **every registered strategy** through a
+generated dataset (`tests/synthetic_prices.py`, test scaffolding that `lab/`
+cannot reach) and asserts the contract holds — valid orders, no lookahead, no
 exceptions, reproducibility across two identical runs. A new strategy is
 covered by it automatically. If it fails for yours, the contract is broken, not
 the test.
 
-A strategy that does not beat `buy_and_hold` after the same costs has not
-earned its complexity. Say so in the write-up rather than omitting the
-comparison.
+A strategy that does not beat the S&P 500 after the same costs has not earned
+its complexity. Say so in the write-up rather than omitting the comparison —
+`active_return` is the number that answers it, and it is negative more often
+than not.
 
 ---
 
@@ -319,6 +424,7 @@ comparison.
 
 ```
 lab/
+  api.py          backtest() and sweep(), for a strategy file's __main__   ← §6.5
   core/
     contract.py   Order, Side, Position, Param, MarketContext, Strategy    ← §5, §6
     hub.py        the loop, fills, sleeves, rejection handling
@@ -334,8 +440,13 @@ lab/
     cointegration.py  Engle-Granger (both steps), Hurst, variance ratio
   strategies/     one file per algorithm            ← what you almost always want
     _rebalance.py shared base for fundamentals strategies (not itself one)
-  web/            Flask app, templates, hand-rolled SVG charts
+  web/            Flask app, templates, hand-rolled SVG charts and Markdown
+  live/
+    config.py     LIVE_SLOTS — what tracks continuously against the market
+    engine.py     tick_slot() / tick_all() — re-runs the hub, does not
+                  incrementally update state; see the module docstring
 ```
+
 
 Design and prose conventions for the GUI live in `docs/design-system.md`;
 architectural reasoning in `docs/architecture.md`. Neither is needed to write a

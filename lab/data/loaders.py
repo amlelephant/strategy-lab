@@ -39,13 +39,34 @@ CACHE_DIR = DATA_DIR / "cache"
 _TIME_KEYS = ("timestamp", "date", "datetime", "time", "Date", "Datetime")
 _SYMBOL_KEYS = ("symbol", "ticker", "Symbol", "Ticker")
 
+# ── the market benchmark ─────────────────────────────────────────────────
+# Every result is measured against the market, and the market here means the
+# S&P 500 as tradeable by anyone: SPY, auto-adjusted, back to 2005. It lives
+# in its own file rather than inside a price dump because it is not part of
+# any universe — it is the yardstick, and a yardstick in the price file is a
+# yardstick some strategy will end up holding.
+MARKET_FILE = "market_spy.csv"
+MARKET_SYMBOL = "SPY"
+MARKET_LABEL = "the S&P 500"
+
+# ── the risk-free rate ───────────────────────────────────────────────────
+# Sharpe and Jensen's alpha are both defined on returns *in excess of* the
+# risk-free rate. Assuming that rate is zero is not a small simplification: it
+# hands every strategy rf·(1−β) of free alpha, which is largest for exactly the
+# strategies that hold cash — a market-timing rule's whole apparent edge can be
+# the interest it was never charged for not earning.
+# `^IRX` is the 13-week Treasury bill yield, stored as an annualised decimal.
+RISK_FREE_FILE = "riskfree_3m.csv"
+RISK_FREE_SYMBOL = "^IRX"
+RISK_FREE_LABEL = "3-month T-bill"
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Prices
 # ═══════════════════════════════════════════════════════════════════════════
 
 def load_prices(source: str | Path, *, name: str | None = None,
-                report_lag_days: int = 60) -> Dataset:
+                report_lag_days: int = 60, market: bool = True) -> Dataset:
     """Load a price dataset from a file or a directory of files.
 
     Recognised:
@@ -53,6 +74,11 @@ def load_prices(source: str | Path, *, name: str | None = None,
       * `.parquet`          — same
       * `.pkl` / `.pickle`  — a DataFrame, or a dict containing one
       * a directory         — one CSV per symbol, named `<SYMBOL>.csv`
+
+    `market=True` attaches the S&P 500 benchmark and the risk-free rate if
+    their files are present. Attached here rather than at each of the three
+    places that build a run — the CLI, `lab.api` and the web app — so no seam
+    can forget one and report an alpha against the wrong thing.
     """
     path = Path(source)
     if not path.exists():
@@ -61,18 +87,20 @@ def load_prices(source: str | Path, *, name: str | None = None,
     name = name or path.stem
 
     if path.is_dir():
-        return _from_symbol_directory(path, name=name,
-                                      report_lag_days=report_lag_days)
-
-    suffix = "".join(path.suffixes).lower()
-    if suffix.endswith(".parquet"):
-        frame = pd.read_parquet(path)
-    elif suffix.endswith(".pkl") or suffix.endswith(".pickle"):
-        frame = _unwrap_pickle(pd.read_pickle(path))
+        dataset = _from_symbol_directory(path, name=name,
+                                         report_lag_days=report_lag_days)
     else:
-        frame = pd.read_csv(path)
+        suffix = "".join(path.suffixes).lower()
+        if suffix.endswith(".parquet"):
+            frame = pd.read_parquet(path)
+        elif suffix.endswith(".pkl") or suffix.endswith(".pickle"):
+            frame = _unwrap_pickle(pd.read_pickle(path))
+        else:
+            frame = pd.read_csv(path)
+        dataset = frame_to_dataset(frame, name=name,
+                                   report_lag_days=report_lag_days)
 
-    return frame_to_dataset(frame, name=name, report_lag_days=report_lag_days)
+    return attach_risk_free(attach_market(dataset)) if market else dataset
 
 
 def frame_to_dataset(frame: pd.DataFrame, *, name: str = "dataset",
@@ -254,7 +282,88 @@ def attach_fundamentals(dataset: Dataset, source: str | Path, *,
     fundamentals = load_fundamentals(source, report_lag_days=lag)
     return Dataset({f: dataset._fields[f] for f in dataset.fields},
                    symbols=dataset.symbols, fundamentals=fundamentals,
-                   name=dataset.name, report_lag_days=lag)
+                   name=dataset.name, report_lag_days=lag,
+                   benchmark=dataset.benchmark,
+                   benchmark_label=dataset.benchmark_label,
+                   risk_free=dataset.risk_free)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# The market benchmark
+# ═══════════════════════════════════════════════════════════════════════════
+
+def load_market_series(source: str | Path | None = None, *,
+                       symbol: str = MARKET_SYMBOL) -> pd.Series | None:
+    """The benchmark close series, or None if its file is not there.
+
+    Missing rather than fatal on purpose: a clone with an empty `data/` should
+    still run backtests. What it must not do is report an alpha as though it
+    had a market to compare against — `benchmark_equity` falls back to the
+    run's own universe and relabels itself, and the hub warns.
+    """
+    path = Path(source) if source is not None else DATA_DIR / MARKET_FILE
+    if not path.exists():
+        return None
+
+    dataset = load_prices(path, name=path.stem, market=False)
+    column = symbol if symbol in dataset.symbols else dataset.symbols[0]
+    series = dataset._fields[CLOSE][column].dropna()
+    return series if len(series) else None
+
+
+def attach_market(dataset: Dataset, source: str | Path | None = None, *,
+                  label: str = MARKET_LABEL) -> Dataset:
+    """Return `dataset` with the market benchmark on its clock.
+
+    A no-op when the benchmark file is absent, and when `dataset` already
+    carries one — so re-loading a dataset does not stack benchmarks.
+    """
+    if dataset.benchmark is not None:
+        return dataset
+    series = load_market_series(source)
+    if series is None:
+        return dataset
+    return Dataset({f: dataset._fields[f] for f in dataset.fields},
+                   symbols=dataset.symbols, fundamentals=dataset.fundamentals,
+                   name=dataset.name, report_lag_days=dataset.report_lag_days,
+                   benchmark=series, benchmark_label=label,
+                   risk_free=dataset.risk_free)
+
+
+def load_risk_free_series(source: str | Path | None = None) -> pd.Series | None:
+    """Annualised risk-free rate as a decimal, or None if the file is absent.
+
+    Two columns, `timestamp` and `rate`, the rate already divided by 100 — the
+    source quotes percent and a factor of 100 loose in a metrics pipeline is a
+    hundredfold error nobody notices until a Sharpe looks strange.
+    """
+    path = Path(source) if source is not None else DATA_DIR / RISK_FREE_FILE
+    if not path.exists():
+        return None
+    frame = pd.read_csv(path)
+    time_col = _find(frame, _TIME_KEYS) or frame.columns[0]
+    rate_col = _find(frame, ("rate", "yield", CLOSE)) or frame.columns[-1]
+    series = pd.Series(
+        pd.to_numeric(frame[rate_col], errors="coerce").to_numpy(dtype=float),
+        index=pd.to_datetime(frame[time_col], errors="coerce")).dropna()
+    series = series[series.index.notna()].sort_index()
+    return series if len(series) else None
+
+
+def attach_risk_free(dataset: Dataset, source: str | Path | None = None
+                     ) -> Dataset:
+    """Return `dataset` carrying the risk-free rate on its clock."""
+    if dataset.risk_free is not None:
+        return dataset
+    series = load_risk_free_series(source)
+    if series is None:
+        return dataset
+    return Dataset({f: dataset._fields[f] for f in dataset.fields},
+                   symbols=dataset.symbols, fundamentals=dataset.fundamentals,
+                   name=dataset.name, report_lag_days=dataset.report_lag_days,
+                   benchmark=dataset.benchmark,
+                   benchmark_label=dataset.benchmark_label,
+                   risk_free=series)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -327,6 +436,10 @@ def catalog(data_dir: Path | None = None) -> list[dict]:
             continue
         if "fundamental" in path.stem.lower() or "valuation" in path.stem.lower():
             continue
+        # Not a price file: a rate series in the prices dropdown is a backtest
+        # waiting to trade a percentage as though it were a share price.
+        if path.name == RISK_FREE_FILE:
+            continue
         entries.append({
             "id": str(path.relative_to(root)).replace("\\", "/"),
             "label": path.stem.replace("_", " "),
@@ -348,34 +461,3 @@ def fundamentals_catalog(data_dir: Path | None = None) -> list[dict]:
     } for p in sorted(root.rglob("*.json"))
         if "fundamental" in p.stem.lower() or "valuation" in p.stem.lower()]
 
-
-def synthetic(symbols: Sequence[str] = ("AAA", "BBB", "CCC", "DDD"),
-              bars: int = 750, seed: int = 3, *,
-              cointegrated_pairs: bool = True) -> Dataset:
-    """A deterministic fake market, for tests and for a GUI that has no data
-    yet.
-
-    Symbols are generated in pairs: the second of each pair is the first plus
-    a mean-reverting spread, so a pairs strategy has something real to find.
-    Everything that renders synthetic data anywhere in this repository labels
-    it as synthetic — a platform for detecting spurious results cannot quietly
-    serve fabricated ones.
-    """
-    rng = np.random.default_rng(seed)
-    index = pd.bdate_range("2021-01-04", periods=bars)
-    out: dict[str, np.ndarray] = {}
-
-    for i, symbol in enumerate(symbols):
-        if cointegrated_pairs and i % 2 == 1 and i > 0:
-            base = out[symbols[i - 1]]
-            spread = np.zeros(bars)
-            for t in range(1, bars):          # Ornstein-Uhlenbeck
-                spread[t] = 0.94 * spread[t - 1] + rng.normal(0, 0.9)
-            out[symbol] = base * 0.8 + 20.0 + spread
-        else:
-            steps = rng.normal(0.0003, 0.014, bars)
-            out[symbol] = 100.0 * np.exp(np.cumsum(steps))
-
-    close = pd.DataFrame(out, index=index)
-    open_ = close.shift(1).fillna(close.iloc[0])
-    return Dataset({"open": open_, CLOSE: close}, name="synthetic")

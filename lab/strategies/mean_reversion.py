@@ -144,3 +144,17 @@ class MeanReversion(Strategy):
                     z=round((price - sma) / sd, 3), sma=round(sma, 4)))
 
         return orders or HOLD
+
+
+# Run this file directly to test it — `python -m lab.strategies.mean_reversion`.
+# The only place a parameter value is chosen: the GUI has no control for one.
+if __name__ == "__main__":
+    from ..api import backtest, sweep                          # noqa: F401
+
+    backtest(MeanReversion, symbols="KO,PEP,XOM,CVX")
+
+    # sweep(MeanReversion, symbols="KO,PEP,XOM,CVX",
+    #       sma_window=[10, 20, 30, 40])
+
+    # Needs data/prices.pkl. `python run.py fetch KO PEP XOM CVX
+    # --start 2021-01-01 --end 2025-01-01` downloads one.

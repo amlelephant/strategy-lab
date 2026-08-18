@@ -140,3 +140,18 @@ class BWValuation(FundamentalRebalance):
             if overall is not None:
                 out[symbol] = overall
         return out
+
+
+# Run this file directly to test it — `python -m lab.strategies.bw_valuation`.
+# The only place a parameter value is chosen: the GUI has no control for one.
+if __name__ == "__main__":
+    from ..api import backtest, sweep                          # noqa: F401
+
+    backtest(BWValuation, data="prices.pkl",
+             fundamentals="fundamentals_simfin.json",
+             all_with_fundamentals=True)
+
+    # sweep(BWValuation, data="prices.pkl",
+    #       fundamentals="fundamentals_simfin.json",
+    #       all_with_fundamentals=True,
+    #       top_fraction=[0.1, 0.2, 0.3])

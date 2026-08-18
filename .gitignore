@@ -9,9 +9,16 @@
 data/*
 !data/.gitkeep
 !data/README.md
+# The exception: half a megabyte, and every alpha number in this repository is
+# measured against it. A benchmark that each clone refetches is a benchmark
+# that differs slightly per clone — adjusted closes get restated — which makes
+# published results unreproducible for the sake of 0.5 MB.
+!data/market_spy.csv
+!data/riskfree_3m.csv
 
 # ── generated ────────────────────────────────────────────────────────────
 runs/
+/live/
 *.png
 !docs/**/*.png
 

@@ -77,7 +77,7 @@ _SCORERS = {"percentile": percentile_of, "zscore": zscore_of,
 class BWCrossSectional(FundamentalRebalance):
 
     key = "bw_cross_sectional"
-    title = "BW Valuation (cross-sectional)"
+    title = "BW Valuation"
     summary = ("Rank the universe on quality, valuation and leverage within "
                "each quarter's own cross-section.")
     provenance = ("fundamentals-v2/score.py — all three scoring methods and "
@@ -164,3 +164,18 @@ class BWCrossSectional(FundamentalRebalance):
             out[symbol] = sum(live[k] * weights[k] for k in live) / total
 
         return out
+
+
+# Run this file directly:  python -m lab.strategies.bw_cross_sectional
+# The only place a parameter value is chosen: the GUI has no control for one.
+if __name__ == "__main__":
+    from ..api import backtest, sweep                          # noqa: F401
+
+    backtest(BWCrossSectional, data="prices.pkl",
+             fundamentals="fundamentals_simfin.json",
+             all_with_fundamentals=True)
+
+    # sweep(BWCrossSectional, data="prices.pkl",
+    #       fundamentals="fundamentals_simfin.json",
+    #       all_with_fundamentals=True,
+    #       top_fraction=[0.1, 0.2, 0.3])

@@ -35,6 +35,49 @@ const Lab = (() => {
     return value > 0 ? "up" : value < 0 ? "down" : "";
   }
 
+  /* The one verdict, written once and used on every screen that shows a
+     result. It leads with the plain comparison against the benchmark — the
+     S&P 500 — because that is the number a reader can check against the chart.
+
+     Alpha is secondary and never the headline. Divided by a small beta it is a
+     large number for anything that made money without market exposure: a
+     market-neutral book returning 3% while the index returned 16% has beta
+     0.00 and therefore alpha +3%, and leading with that announced a win on a
+     result that lost by thirteen points a year. Mirrors
+     `Performance.verdict()`; change both together. */
+  function alphaVerdict(p, { badge = true } = {}) {
+    const active = p.active_return;
+    if (active === null || active === undefined) {
+      return "No benchmark to compare against.";
+    }
+    const against = p.benchmark_label || "the benchmark";
+    const plain = `<strong>${signedPct(active, 2)} a year</strong> vs ${against}`;
+
+    if (p.alpha_t === null || p.alpha === null) {
+      return plain + ".";
+    }
+    const riskAdj = `${signedPct(p.alpha, 2)} against its ${num(p.beta, 2)} beta
+      (t = ${num(p.alpha_t, 1)})`;
+
+    if (!(active > 0)) {
+      let tail = `Risk-adjusted, ${riskAdj}.`;
+      if (p.beta !== null && p.beta < 0.8 && p.alpha > 0) {
+        tail += " That measures how little market exposure it carried, not a"
+              + " better return.";
+      }
+      return `${plain} — <strong>did not beat the market</strong>. ${tail}` +
+        (badge ? ' <span class="badge bad">trails the market</span>' : "");
+    }
+    if (p.alpha_t > 2 && p.alpha > 0) {
+      return `${plain} — <strong>beat the market</strong>, and ${riskAdj}
+        survives adjusting for risk.` +
+        (badge ? ' <span class="badge good">beats the market</span>' : "");
+    }
+    return `${plain} — ahead of the market, but ${riskAdj} is
+      <strong>not distinguishable</strong> from luck.` +
+      (badge ? ' <span class="badge warn">inconclusive</span>' : "");
+  }
+
   function el(tag, attrs = {}, text) {
     const node = document.createElementNS(SVG_NS, tag);
     for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
@@ -260,39 +303,46 @@ const Lab = (() => {
   }
 
   /* ═══════════════════════════════════════════════════════════════════
-     Console
+     Strategy page — the backtest form for exactly one strategy
+
+     There is no parameter control anywhere in here, and there is no code
+     that would render one. The form collects what belongs to a *run* — the
+     data, the universe, the frictions — and the strategy itself arrives as
+     a bare key.
      ═══════════════════════════════════════════════════════════════════ */
 
-  function initConsole() {
+  function initStrategy() {
     initTheme();
     const form = $("#run-form");
     const runBtn = $("#run-btn");
-    const sweepBtn = $("#sweep-btn");
     const status = $("#run-status");
-    const picks = $$(".pick");
+    /* getAttribute, not `form.dataset.key`. A form exposes its own controls
+       as named properties, and that named getter *overrides* built-ins — so
+       with a `<select name="dataset">` on this page, `form.dataset` is the
+       select element and `.key` on it is undefined. The run then posts a
+       null strategy and silently backtests only the controls. */
+    const key = form.getAttribute("data-key");
 
-    const chosen = () => picks.filter((p) => $("input[name=strategy]", p).checked);
-
-    function refresh() {
-      const active = chosen();
-      picks.forEach((p) => p.classList.toggle("on",
-        $("input[name=strategy]", p).checked));
-      runBtn.disabled = active.length === 0;
-      sweepBtn.disabled = active.length !== 1;
-      $("#picked-count").textContent = active.length === 0
-        ? "none selected"
-        : `${active.length} selected`;
-      status.textContent = active.length === 0
-        ? "Select at least one strategy."
-        : active.length === 1
-          ? "Ready. A sweep is available for a single strategy."
-          : `Ready — ${active.length} strategies, one pass over the data.`;
+    const copyBtn = $("#copy-path");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(copyBtn.dataset.path);
+          copyBtn.textContent = "Copied";
+        } catch (err) {
+          /* Clipboard needs a secure context; selecting the text is the
+             fallback that always works, and is what the user would do next
+             anyway. */
+          const range = document.createRange();
+          range.selectNodeContents($("#source-path"));
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          copyBtn.textContent = "Selected";
+        }
+        setTimeout(() => { copyBtn.textContent = "Copy"; }, 1600);
+      });
     }
-
-    picks.forEach((p) => {
-      $("input[name=strategy]", p).addEventListener("change", refresh);
-    });
-    refresh();
 
     $$(".preset").forEach((button) => {
       button.addEventListener("click", () => {
@@ -302,9 +352,47 @@ const Lab = (() => {
       });
     });
 
-    $("#universe-mode").addEventListener("change", (event) => {
-      $("#symbols-field").hidden = event.target.value !== "symbols";
-    });
+    /* Sync on load as well as on change: a cross-sectional strategy renders
+       with "every company with fundamentals" already selected, and the
+       symbols box was still sitting there under it looking like it applied. */
+    const universeMode = $("#universe-mode");
+    const syncUniverse = () => {
+      $("#symbols-field").hidden = universeMode.value !== "symbols";
+
+      /* "Every company with fundamentals" against a fundamentals box reading
+         "none" is a request that cannot succeed — the run is rejected before
+         it starts. Rather than let the form offer a combination it will refuse,
+         select the first fundamentals file and say so. */
+      const fundamentals = form.fundamentals;
+      const notice = $("#universe-notice");
+      notice.hidden = true;
+      if (universeMode.value === "fundamentals" && fundamentals
+          && !fundamentals.value) {
+        const first = Array.from(fundamentals.options).find((o) => o.value);
+        if (first) {
+          fundamentals.value = first.value;
+          notice.hidden = false;
+          notice.textContent =
+            `This universe needs fundamentals, so ${first.textContent.split(" · ")[0]} was selected under Data.`;
+        } else {
+          notice.hidden = false;
+          notice.textContent =
+            "This universe needs a fundamentals file, and there are none in data/.";
+        }
+      } else if (universeMode.value === "all"
+                 // Not `form.dataset.universe` — see the comment on `key`
+                 // above, same collision, different control.
+                 && form.getAttribute("data-universe") === "pair") {
+        notice.hidden = false;
+        notice.textContent =
+          "Pairs are consumed two at a time in this order — every symbol in " +
+          "the price file pairs alphabetically-adjacent tickers, not related " +
+          "ones. Name specific pairs instead, or turn on the cointegration " +
+          "screen and expect it to reject nearly everything it is given.";
+      }
+    };
+    universeMode.addEventListener("change", syncUniverse);
+    syncUniverse();
 
     $("#scenario").addEventListener("change", async (event) => {
       const presets = {
@@ -335,17 +423,11 @@ const Lab = (() => {
     $("#dataset").addEventListener("change", describeDataset);
     describeDataset();
 
-    function collectParams(pick) {
-      const params = {};
-      $$("[data-param]", pick).forEach((input) => {
-        params[input.dataset.param] = input.type === "checkbox"
-          ? input.checked : input.value;
-      });
-      return params;
-    }
-
     function payload() {
       const data = new FormData(form);
+      /* One strategy. Comparison happens on the result page, against other
+         runs, so a run no longer carries sleeves it is not about. */
+      const strategies = [key];
       return {
         dataset: data.get("dataset"),
         fundamentals: data.get("fundamentals"),
@@ -359,38 +441,29 @@ const Lab = (() => {
         timing: data.get("timing"),
         starting_cash: data.get("starting_cash"),
         seed: data.get("seed"),
-        strategies: chosen().map((p) => ({
-          key: p.dataset.key, params: collectParams(p),
-        })),
+        strategies: strategies,
       };
     }
 
-    async function submit(endpoint, extra = {}) {
-      runBtn.disabled = sweepBtn.disabled = true;
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      runBtn.disabled = true;
+      status.className = "status";
       status.textContent = "starting…";
       try {
-        const response = await fetch(endpoint, {
+        const response = await fetch("/api/run", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...payload(), ...extra }),
+          body: JSON.stringify(payload()),
         });
         const job = await response.json();
         if (!response.ok) throw new Error(job.error || "the run was rejected");
         window.location.href = `/run/${job.id}`;
       } catch (err) {
+        status.className = "status error";
         status.textContent = err.message;
-        refresh();
+        runBtn.disabled = false;
       }
-    }
-
-    form.addEventListener("submit", (event) => {
-      event.preventDefault();
-      submit("/api/run");
-    });
-
-    sweepBtn.addEventListener("click", () => {
-      const pick = chosen()[0];
-      submit("/api/sweep", { key: pick.dataset.key });
     });
   }
 
@@ -421,81 +494,114 @@ const Lab = (() => {
          <div><strong>Note.</strong> ${w}</div></div>`).join("");
 
     const sleeves = data.sleeves;
-    let active = 0;
+    const active = 0;                     // a run is one strategy
 
-    const tabs = $("#sleeve-tabs");
-    tabs.innerHTML = "";
-    if (sleeves.length > 1) {
-      sleeves.forEach((s, i) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "btn-quiet" + (i === 0 ? " on" : "");
-        button.textContent = s.title;
-        button.addEventListener("click", () => {
-          active = i;
-          $$(".btn-quiet", tabs).forEach((b, k) => b.classList.toggle("on", k === i));
-          paint();
-        });
-        tabs.appendChild(button);
+    /* What the equity chart is drawn against. Defaults to the market and
+       resets to it on every load: the comparison is a lens, not a setting, and
+       one that persisted would quietly change what a shared link shows. */
+    let overlay = { label: data.benchmark.label,
+                    points: data.benchmark.equity };
+    const compare = $("#compare-with");
+    const curves = new Map();             // run id → fetched equity
+
+    /* How many rows of the trade log are in the DOM. A run can carry tens of
+       thousands of fills — rendering all of them unasked would freeze the
+       tab on load, so the page starts with a page of them and grows only on
+       request. The data behind it is never truncated (see `_trade_rows` in
+       `lab/core/hub.py`); this is a rendering limit, not a data limit. */
+    let tradesShown = 500;
+
+    if (compare) {
+      compare.addEventListener("change", async () => {
+        const choice = compare.value;
+        if (choice === "market") {
+          overlay = { label: data.benchmark.label, points: data.benchmark.equity };
+        } else if (choice === "universe") {
+          overlay = { label: (data.universe || {}).label || "Underlying assets",
+                      points: (data.universe || {}).equity || [] };
+        } else if (choice.startsWith("run:")) {
+          const id = choice.slice(4);
+          if (!curves.has(id)) {
+            compare.disabled = true;
+            try {
+              const response = await fetch(`/api/curve/${id}`);
+              curves.set(id, response.ok ? await response.json() : null);
+            } catch (err) {
+              curves.set(id, null);
+            }
+            compare.disabled = false;
+          }
+          const curve = curves.get(id);
+          overlay = curve
+            ? { label: curve.label, points: curve.equity }
+            : { label: "unavailable", points: [] };
+        }
+        paint();
       });
     }
 
     function paint() {
       const s = sleeves[active];
       const p = s.performance;
+      const b = data.benchmark.performance;
 
-      $("#hero-sharpe").textContent = num(p.sharpe);
-      $("#hero-sharpe").className = "hero " + toneFor(p.sharpe);
-
-      const significant = p.sharpe_t !== null && Math.abs(p.sharpe_t) > 2;
-      const n = p.observations ? p.observations.toLocaleString() : "0";
-      $("#hero-verdict").innerHTML = p.sharpe_t === null
-        ? "Not enough observations to say anything."
-        : !significant
-          ? `t = ${num(p.sharpe_t, 1)} over ${n} observations —
-             <strong>not distinguishable from luck</strong> on this sample.
-             <span class="badge warn">inconclusive</span>`
-          : p.sharpe < 0
-            ? `t = ${num(p.sharpe_t, 1)} over ${n} observations — reliably
-               <strong>negative</strong>, which is a real finding about the
-               strategy. <span class="badge bad">significantly negative</span>`
-            : `t = ${num(p.sharpe_t, 1)} over ${n} observations — clears the
-               conventional |t| &gt; 2 bar.
-               <span class="badge good">significant</span>`;
+      /* The hero is the plain comparison. Alpha lives in a tile beside the
+         beta that gives it meaning. */
+      $("#hero-label").textContent =
+        `Vs ${p.benchmark_label || "the benchmark"}, annualised`;
+      $("#hero-active").textContent = signedPct(p.active_return, 2);
+      $("#hero-active").className = "hero " + toneFor(p.active_return);
+      $("#hero-verdict").innerHTML = alphaVerdict(p);
 
       $("#stat-return").textContent = signedPct(p.total_return);
       $("#stat-return").className = "value " + toneFor(p.total_return);
       $("#stat-return-sub").textContent =
-        `${signedPct(p.cagr)} a year over ${num(p.years, 1)} years`;
+        `${signedPct(p.cagr)} a year · benchmark ${signedPct(b.cagr)}`;
+
+      /* Secondary, and never without its beta: alpha over a near-zero beta
+         is large for anything that made money without market exposure. */
+      $("#stat-alpha").textContent = signedPct(p.alpha, 2);
+      $("#stat-alpha").className = "value " + toneFor(p.alpha);
+      $("#stat-alpha-sub").textContent = p.alpha_t === null ? ""
+        : `t = ${num(p.alpha_t, 1)}`;
+
+      $("#stat-sharpe").textContent = num(p.sharpe);
+      $("#stat-sharpe").className = "value " + toneFor(p.sharpe);
+      /* The Sharpe never appears without its t and its n. It is the number
+         most likely to be quoted out of context, and on its own it says
+         nothing about whether the strategy beat owning the market. */
+      /* Naming the risk-free rate here because a Sharpe computed over cash at
+         0% is a different number from one computed over T-bills, and which of
+         the two you are reading is not otherwise visible anywhere. */
+      $("#stat-sharpe-sub").textContent =
+        `t = ${num(p.sharpe_t, 1)} over ${(p.observations || 0).toLocaleString()} obs`
+        + (p.risk_free_rate ? ` · excess of ${pct(p.risk_free_rate, 1)} cash` : "");
+
+      $("#stat-beta").textContent = num(p.beta);
+      $("#stat-beta-sub").textContent = p.information_ratio === null ? ""
+        : `IR ${num(p.information_ratio, 2)}`;
 
       $("#stat-dd").textContent = pct(p.max_drawdown);
       $("#stat-dd-sub").textContent = p.max_drawdown_days
         ? `${Math.round(p.max_drawdown_days)} days underwater at worst` : "";
 
-      $("#stat-trades").textContent = (p.round_trips || 0).toLocaleString();
-      $("#stat-trades-sub").textContent = p.hit_rate === null ? ""
-        : `${pct(p.hit_rate, 0)} of them profitable`;
-
-      const costs = (p.total_commission || 0) + (p.total_slippage || 0);
-      $("#stat-costs").textContent = money(costs);
-      $("#stat-costs-sub").textContent = p.starting_equity
-        ? `${pct(costs / p.starting_equity, 1)} of starting capital` : "";
-
-      /* equity: this sleeve, plus the frictionless benchmark */
+      /* equity: this strategy, plus whatever the dropdown is comparing it to */
       const equitySvg = $("#equity-chart");
       const geom = drawChart(equitySvg, [
         { label: s.title, points: s.equity },
-        { label: "Equal-weight universe", points: data.benchmark.equity,
-          dashed: true },
+        { label: overlay.label, points: overlay.points, dashed: true },
       ], { baseline: p.starting_equity });
       attachScrub(equitySvg, geom, $("#chart-readout"), [money, money]);
 
+      const ends = overlay.points && overlay.points.length
+        ? overlay.points[overlay.points.length - 1][1] / p.starting_equity - 1
+        : null;
       $("#equity-legend").innerHTML = `
         <span class="item"><i class="swatch" style="background:${seriesColour(0)}"></i>
-          ${s.title}</span>
+          ${s.title} — ${signedPct(p.total_return)}</span>
         <span class="item"><i class="swatch"
           style="background:var(--text-tertiary)"></i>
-          Equal-weight universe, no costs — ${signedPct(data.benchmark.performance.total_return)}</span>`;
+          ${overlay.label}${ends === null ? "" : ` — ${signedPct(ends)}`}</span>`;
 
       drawChart($("#dd-chart"), [
         { label: "Drawdown", points: s.drawdown, fill: true,
@@ -503,22 +609,38 @@ const Lab = (() => {
       ], { height: 160, baseline: 0, clampMax: 0, format: (v) => pct(v, 0) });
 
       /* trade log */
-      const rows = s.trades || [];
-      $("#trade-count").textContent = rows.length
-        ? `${rows.length.toLocaleString()} fills shown` : "no fills";
-      $("#trade-table tbody").innerHTML = rows.map((t) => `
-        <tr>
-          <td class="secondary">${shortDate(t.timestamp)}</td>
-          <td class="name">${t.symbol}</td>
-          <td class="secondary">${t.action}</td>
-          <td class="secondary">${t.side}</td>
-          <td>${Number(t.quantity).toLocaleString()}</td>
-          <td>${money(t.price)}</td>
-          <td class="${toneFor(t.realised_pnl)}">${
-            t.action === "close" ? money(t.realised_pnl) : "—"}</td>
-          <td class="wrap">${t.reason || ""}</td>
-        </tr>`).join("") ||
-        `<tr><td colspan="8" class="empty">This strategy never traded.</td></tr>`;
+      const allRows = s.trades || [];
+      const renderTrades = () => {
+        const rows = allRows.slice(0, tradesShown);
+        $("#trade-count").textContent = allRows.length
+          ? (rows.length < allRows.length
+              ? `${rows.length.toLocaleString()} of ${allRows.length.toLocaleString()} fills shown`
+              : `${rows.length.toLocaleString()} fills shown`)
+          : "no fills";
+        $("#trade-table tbody").innerHTML = rows.map((t) => `
+          <tr>
+            <td class="secondary">${shortDate(t.timestamp)}</td>
+            <td class="name">${t.symbol}</td>
+            <td class="secondary">${t.action}</td>
+            <td class="secondary">${t.side}</td>
+            <td>${Number(t.quantity).toLocaleString()}</td>
+            <td>${money(t.price)}</td>
+            <td class="${toneFor(t.realised_pnl)}">${
+              t.action === "close" ? money(t.realised_pnl) : "—"}</td>
+            <td class="wrap">${t.reason || ""}</td>
+          </tr>`).join("") ||
+          `<tr><td colspan="8" class="empty">This strategy never traded.</td></tr>`;
+
+        const moreBox = $("#trade-more-box");
+        const moreBtn = $("#trade-more-btn");
+        const remaining = allRows.length - rows.length;
+        moreBox.hidden = remaining <= 0;
+        if (remaining > 0) {
+          moreBtn.textContent = `Load all ${allRows.length.toLocaleString()} fills`;
+          moreBtn.onclick = () => { tradesShown = allRows.length; renderTrades(); };
+        }
+      };
+      renderTrades();
 
       /* decisions */
       const lines = [
@@ -537,26 +659,31 @@ const Lab = (() => {
     /* comparison table always shows every sleeve */
     const rows = sleeves.map((s) => {
       const p = s.performance;
+      const costs = (p.total_commission || 0) + (p.total_slippage || 0);
       return `<tr>
         <td class="name">${s.title}</td>
+        <td class="${toneFor(p.alpha)}">${signedPct(p.alpha)}</td>
+        <td class="secondary">${num(p.alpha_t, 1)}</td>
+        <td class="secondary">${num(p.beta)}</td>
         <td class="${toneFor(p.total_return)}">${signedPct(p.total_return)}</td>
         <td>${signedPct(p.cagr)}</td>
-        <td class="${toneFor(p.sharpe)}">${num(p.sharpe)}</td>
-        <td class="secondary">${num(p.sharpe_t, 1)}</td>
+        <td>${num(p.sharpe)} <span class="tertiary">(${num(p.sharpe_t, 1)})</span></td>
         <td>${pct(p.max_drawdown)}</td>
         <td>${(p.round_trips || 0).toLocaleString()}</td>
         <td>${p.hit_rate === null ? "—" : pct(p.hit_rate, 0)}</td>
-        <td class="secondary">${pct(s.fill_rate, 0)}</td>
+        <td class="secondary">${money(costs)}</td>
       </tr>`;
     }).join("");
-    const b = data.benchmark.performance;
+    const bench = data.benchmark.performance;
     $("#compare-table tbody").innerHTML = rows + `<tr>
-      <td class="name secondary">Equal-weight universe, no costs</td>
-      <td class="secondary">${signedPct(b.total_return)}</td>
-      <td class="secondary">${signedPct(b.cagr)}</td>
-      <td class="secondary">${num(b.sharpe)}</td>
-      <td class="secondary">${num(b.sharpe_t, 1)}</td>
-      <td class="secondary">${pct(b.max_drawdown)}</td>
+      <td class="name secondary">${data.benchmark.label}, no costs</td>
+      <td class="secondary">—</td>
+      <td class="secondary">—</td>
+      <td class="secondary">1.00</td>
+      <td class="secondary">${signedPct(bench.total_return)}</td>
+      <td class="secondary">${signedPct(bench.cagr)}</td>
+      <td class="secondary">${num(bench.sharpe)} (${num(bench.sharpe_t, 1)})</td>
+      <td class="secondary">${pct(bench.max_drawdown)}</td>
       <td class="secondary">—</td><td class="secondary">—</td>
       <td class="secondary">—</td></tr>`;
 
@@ -584,44 +711,152 @@ const Lab = (() => {
     window.addEventListener("lab:theme", redraw);
   }
 
-  /* ═══════════════════════════════════════════════════════════════════
-     Sweep
-     ═══════════════════════════════════════════════════════════════════ */
+  /* ── live page ──────────────────────────────────────────────────── */
 
-  function initSweep(jobId) {
+  function initLive(slots) {
     initTheme();
-    poll(jobId, showProgress, (job) => {
-      const data = job.result;
-      $("#running").hidden = true;
-      $("#result").hidden = false;
+    slots.forEach((slot) => {
+      const state = slot.state;
+      const svg = $(`#chart-${slot.key}`);
+      if (!state || !svg) return;
 
-      $("#hero-sharpe").textContent = num(data.best.sharpe);
-      $("#hero-sharpe").className = "hero " +
-        (data.probably_luck ? "" : toneFor(data.best.sharpe));
-      $("#verdict").innerHTML = data.verdict +
-        (data.probably_luck ? ' <span class="badge bad">nothing found</span>'
-          : ' <span class="badge accent">worth a closer look</span>');
+      const stratPoints = state.strategy.context_equity.concat(state.strategy.live_equity);
+      const marketPoints = state.market.context_equity.concat(state.market.live_equity);
+      if (stratPoints.length < 2) return;
 
-      $("#stat-trials").textContent = data.trials;
-      $("#stat-noise").textContent = num(data.expected_max_noise_sharpe);
-      $("#stat-deflated").textContent = num(data.deflated_sharpe);
-      $("#stat-plateau").textContent = pct(data.plateau, 0);
+      const series = [
+        { label: slot.title, points: stratPoints },
+        { label: "buy & hold (same universe)", points: marketPoints, dashed: true },
+      ];
+      const geom = drawChart(svg, series, { format: money });
+      if (!geom) return;
 
-      const columns = data.columns;
-      $("#grid-table thead tr").innerHTML = columns
-        .map((c, i) => `<th${i === 0 ? ' class="name"' : ""}>${
-          String(c).replace(/_/g, " ")}</th>`).join("");
-      $("#grid-table tbody").innerHTML = data.rows.map((row) => `<tr>${
-        columns.map((c, i) => {
-          const v = row[c];
-          const text = typeof v === "number"
-            ? (["total_return", "cagr", "max_drawdown", "hit_rate"].includes(c)
-              ? signedPct(v) : num(v, 3))
-            : String(v);
-          return `<td${i === 0 ? ' class="name"' : ""}>${text}</td>`;
-        }).join("")}</tr>`).join("");
-    }, showFailure);
+      /* The marker is not a data series — it is where the tracked, live
+         result begins. Left of it is backtest context fed so indicators are
+         past warmup and the chart is not blank on day one; right of it is
+         the only part any number on the page is computed from. */
+      const inceptionMs = Date.parse(state.inception);
+      if (inceptionMs >= geom.tMin) {
+        // A slot that just went live has an inception date past the most
+        // recent bar the market has posted — clamp to the right edge rather
+        // than skip the marker, so "tracking starts here" still shows on
+        // day zero instead of only appearing once a live bar exists.
+        const ix = Math.min(geom.x(inceptionMs), geom.width - geom.pad.right);
+        svg.appendChild(el("line", {
+          x1: ix, x2: ix, y1: geom.pad.top, y2: geom.height - geom.pad.bottom,
+          stroke: PALETTE().tertiary, "stroke-width": 1, "stroke-dasharray": "2 3",
+        }));
+        svg.appendChild(el("text", {
+          x: ix - 4, y: geom.pad.top + 10, class: "axis-label",
+          "text-anchor": "end",
+        }, "live since " + state.inception));
+      }
+
+      const legend = $(`#legend-${slot.key}`);
+      if (legend) {
+        legend.innerHTML = series.map((s, i) => `<span class="item">
+          <span class="swatch" style="background:${s.dashed ? PALETTE().tertiary : seriesColour(i)}"></span>
+          ${s.label}</span>`).join("");
+      }
+
+      const readout = $(`#readout-${slot.key}`);
+      if (readout) attachScrub(svg, geom, readout, series.map(() => money));
+    });
   }
 
-  return { console: initConsole, result: initResult, sweep: initSweep };
+  /* ═══════════════════════════════════════════════════════════════════
+     Home — the strategy list, recent runs, and the scaffold form
+     ═══════════════════════════════════════════════════════════════════ */
+
+  function initHome() {
+    initTheme();
+    const form = $("#new-strategy-form");
+    if (!form) return;
+    const status = $("#new-strategy-status");
+    const button = $("#new-strategy-btn");
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      button.disabled = true;
+      status.textContent = "writing the file…";
+      status.className = "caption secondary";
+      const data = new FormData(form);
+      try {
+        const response = await fetch("/api/strategies/new", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            key: data.get("key"), title: data.get("title"),
+            universe: data.get("universe"), summary: data.get("summary"),
+          }),
+        });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || "could not scaffold that strategy");
+        status.className = "caption up";
+        status.innerHTML = `Written to <code class="mono">${body.path}</code> —
+          restart the server to register it, then it appears everywhere.`;
+        form.reset();
+      } catch (err) {
+        status.className = "caption down";
+        status.textContent = err.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     Showcase — one card per registered strategy, its latest backtest
+     ═══════════════════════════════════════════════════════════════════ */
+
+  function initShowcase(keys) {
+    initTheme();
+    keys.forEach((key) => {
+      const node = $(`#data-${key}`);
+      if (!node) return;
+      const featured = JSON.parse(node.textContent);
+      const sleeve = featured.sleeve;
+      const p = sleeve.performance;
+
+      const stats = $(`#stats-${key}`);
+      if (stats) {
+        /* The t-statistics go in `.sub`, not inline in parentheses: at four
+           tiles across a half-width card, an inline "(1.9)" wraps onto its
+           own line and knocks the row out of alignment. */
+        stats.innerHTML = `
+          <div class="stat"><span class="overline">Vs market</span>
+            <span class="value ${toneFor(p.active_return)}">${signedPct(p.active_return, 1)}</span>
+            <span class="sub">a year</span></div>
+          <div class="stat"><span class="overline">CAGR</span>
+            <span class="value ${toneFor(p.cagr)}">${signedPct(p.cagr, 1)}</span>
+            <span class="sub">alpha ${signedPct(p.alpha, 1)} · beta ${num(p.beta)}</span></div>
+          <div class="stat"><span class="overline">Sharpe</span>
+            <span class="value">${num(p.sharpe)}</span>
+            <span class="sub">t = ${num(p.sharpe_t, 1)}</span></div>
+          <div class="stat"><span class="overline">Max drawdown</span>
+            <span class="value">${pct(p.max_drawdown, 1)}</span>
+            <span class="sub">${(p.observations || 0).toLocaleString()} obs</span></div>`;
+      }
+
+      const svg = $(`#chart-${key}`);
+      if (svg) {
+        const series = [{ label: sleeve.title, points: sleeve.equity }];
+        if (featured.benchmark) {
+          series.push({ label: featured.benchmark.label || "Benchmark",
+            points: featured.benchmark.equity, dashed: true });
+        }
+        drawChart(svg, series, { height: 130, baseline: p.starting_equity });
+      }
+
+      const verdict = $(`#verdict-${key}`);
+      if (verdict) verdict.innerHTML = alphaVerdict(p, { badge: false });
+    });
+  }
+
+  return {
+    home: initHome, strategy: initStrategy, result: initResult,
+    live: initLive, showcase: initShowcase,
+    /* Static page — it needs the theme toggle wired and nothing else. */
+    docs: initTheme,
+  };
 })();

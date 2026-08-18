@@ -1,17 +1,37 @@
 """
 lab/strategies/stat_arb_ev.py
 =============================
-The same pairs trade, but only when the arithmetic works.
+The pairs trade, but only entered on a relationship screened for being real
+and an arithmetic that clears its own costs.
 
-Ported from `stat-arb-v2/core/ev_filter.py`. Signal generation is identical to
-`stat_arb` — the difference is entirely in what it refuses.
+Ported from `stat-arb-v2/core/ev_filter.py` (the EV gates) and the
+cointegration-explorer research app (the relatedness screen, originally
+`stat_arb.require_cointegration` — see `research/strategies/stat_arb.md` for
+the MacKinnon-table and missing-error-correction findings that came out of
+building it). The two were shown side by side while each was being measured;
+combined here because a production pairs strategy should not skip either
+question. `stat_arb`, the unscreened, unfiltered baseline both were checked
+against, is still in `lab/strategies/stat_arb.py` and still runs directly
+(`python -m lab.strategies.stat_arb`) — it is just not registered, so it no
+longer duplicates this one on the showcase.
 
-The thesis it enforces, stated once so the gates make sense:
+The thesis, stated once so the gates make sense:
 
-    A retail account cannot compete with anyone on sub-day timescales. The
-    only spreads worth trading are those that revert slowly enough that
-    execution latency is irrelevant, *and* whose expected capture is large
-    relative to both the cost of trading and the volatility of holding.
+    Two series that drift upward together produce a confident hedge ratio
+    whether or not anything connects them, and a retail account cannot
+    compete with anyone on sub-day timescales. A spread is worth trading only
+    if the relationship is real, it reverts slowly enough that execution
+    latency is irrelevant, and the expected capture is large relative to both
+    the cost of trading and the volatility of holding.
+
+Gate 0, optional, screens what the other four take for granted:
+
+    0  COINTEGRATION  Off by default so the unscreened signal stays visible.
+                       `require_cointegration=True` gates entry on Engle-Granger,
+                       re-tested every `retest_every` bars and cached by pair.
+                       Two independent random walks can still pass gates 1-4
+                       with a confident-looking hedge ratio; this is the gate
+                       that asks whether the pair is related at all.
 
 Four gates, in order, each rejecting for a different reason:
 
@@ -27,11 +47,11 @@ Four gates, in order, each rejecting for a different reason:
     4  MIN EV      An absolute dollar floor, so tiny positions where fees
                    dominate never get taken.
 
-The earlier version of this filter gated on `net_ev > $10` and
+The earlier version of the EV filter gated on `net_ev > $10` and
 `sharpe_contribution > 0.5`, and rejected nothing in any backtest — a $12k
 position at z=2.2 clears a $10 floor trivially. A filter that never fires is
 worse than no filter, because it looks like risk management. Every rejection
-here is written to the run log with its reason, so "how often did gate 1 fire"
+here is written to the run log with its reason, so "how often did gate N fire"
 is a question you can answer instead of assume.
 """
 
@@ -44,7 +64,20 @@ import numpy as np
 from ..core.contract import (HOLD, MarketContext, Order, Param, ParamKind,
                              Side, Strategy, Universe)
 from ..core.registry import register
-from .stat_arb import hedge_ratio
+
+
+def hedge_ratio(y: np.ndarray, x: np.ndarray) -> float:
+    """OLS slope of y on x with an intercept.
+
+    Closed form rather than statsmodels: this runs once per pair per bar, and
+    `sm.OLS(...).fit()` is roughly two orders of magnitude slower for a job
+    that is one covariance divided by one variance.
+    """
+    x_mean, y_mean = x.mean(), y.mean()
+    variance = float(((x - x_mean) ** 2).sum())
+    if variance <= 0:
+        return float("nan")
+    return float(((x - x_mean) * (y - y_mean)).sum() / variance)
 
 
 def ou_half_life(series: np.ndarray) -> float:
@@ -74,18 +107,22 @@ def ou_half_life(series: np.ndarray) -> float:
 class StatArbEV(Strategy):
 
     key = "stat_arb_ev"
-    title = "Statistical Arbitrage (EV-filtered)"
+    title = "Statistical Arbitrage"
     universe = Universe.PAIR
-    summary = ("Pairs trading that will not enter unless expected capture "
+    default_symbols = "KO, PEP, XOM, CVX, MCD, YUM, CL, PG"
+    summary = ("Pairs trading that screens for a real cointegrating "
+               "relationship and will not enter unless expected capture "
                "clears costs, latency and hold-period risk.")
     provenance = ("stat-arb-v2/core/ev_filter.py and analysis/zscore_signal.py "
-                  "— gates preserved, costs now read from the run's own model "
-                  "rather than a private config.")
+                  "for the EV gates, costs now read from the run's own model "
+                  "rather than a private config; the cointegration screen is "
+                  "ported from the cointegration-explorer research app.")
     notes = (
-        "Run this beside `stat_arb` on the same universe. The interesting "
-        "output is not which one earns more — it is the rejection log, which "
-        "says how many of the baseline's trades were never worth taking and "
-        "which gate caught them."
+        "Run with `require_cointegration=True` and without it on the same "
+        "universe. The interesting output is not which one earns more — it "
+        "is the rejection log, which says how many signals were never a real "
+        "relationship and how many cleared that screen but never cleared "
+        "their own costs. See `research/strategies/stat_arb.md`."
     )
 
     params = (
@@ -118,6 +155,17 @@ class StatArbEV(Strategy):
               help="Expected hold as a multiple of the half-life."),
         Param("position_fraction", 0.9, ParamKind.FLOAT, low=0.01, high=1.0,
               step=0.05, help="Share of sleeve equity across all pairs."),
+        Param("require_cointegration", False, ParamKind.BOOL,
+              help="Refuse to enter unless the pair passes Engle-Granger on "
+                   "the trailing window. Off by default so the unscreened "
+                   "signal stays visible.",
+              grid=(False, True)),
+        Param("cointegration_level", 0.05, ParamKind.FLOAT, low=0.001, high=0.5,
+              step=0.01, help="Significance level for that test."),
+        Param("retest_every", 21, ParamKind.INT, low=1, high=252, step=1,
+              help="Bars between cointegration re-tests. The test costs far "
+                   "more than the signal does, and a relationship does not "
+                   "change daily."),
     )
 
     @property
@@ -126,10 +174,26 @@ class StatArbEV(Strategy):
 
     def on_start(self, ctx: MarketContext) -> None:
         self.rejected: dict[str, int] = {
-            "half_life_fast": 0, "half_life_slow": 0, "breakeven_z": 0,
-            "reward_risk": 0, "min_ev": 0, "too_small": 0}
+            "not_cointegrated": 0, "half_life_fast": 0, "half_life_slow": 0,
+            "breakeven_z": 0, "reward_risk": 0, "min_ev": 0, "too_small": 0}
         self.approved = 0
         self._bars_per_day = max(1.0, ctx.periods_per_year / 252.0)
+        self._screen: dict[str, tuple[int, bool, str]] = {}
+
+    def _passes_screen(self, ctx: MarketContext, group: str,
+                       y: np.ndarray, x: np.ndarray) -> tuple[bool, str]:
+        """Cached Engle-Granger verdict for one pair."""
+        cached = self._screen.get(group)
+        if cached is not None and ctx.i - cached[0] < self.retest_every:
+            return cached[1], cached[2]
+
+        from ..analysis.cointegration import engle_granger
+        result = engle_granger(y, x)
+        ok = result.is_cointegrated(self.cointegration_level)
+        note = (f"cointegrated at p={result.p_value:.3f}" if ok
+                else f"not cointegrated (p={result.p_value:.3f})")
+        self._screen[group] = (ctx.i, ok, note)
+        return ok, note
 
     def on_finish(self, ctx: MarketContext) -> None:
         total = self.approved + sum(self.rejected.values())
@@ -191,6 +255,13 @@ class StatArbEV(Strategy):
 
             if abs(z) < self.entry_z:
                 continue
+
+            if self.require_cointegration:
+                passed, note = self._passes_screen(ctx, group, y, x)
+                if not passed:
+                    self.rejected["not_cointegrated"] += 1
+                    ctx.log(f"{group} z={z:+.2f} not taken - {note}")
+                    continue
 
             # ── the four gates ──────────────────────────────────────────
             shares = capital / y_price
@@ -293,3 +364,17 @@ class StatArbEV(Strategy):
             out["reason"] = (f"net EV ${net_ev:,.0f} below "
                              f"${self.min_ev_dollars:,.0f}")
         return out
+
+
+# Run this file directly to test it — `python -m lab.strategies.stat_arb_ev`.
+# The only place a parameter value is chosen: the GUI has no control for one.
+if __name__ == "__main__":
+    from ..api import backtest, sweep                          # noqa: F401
+
+    backtest(StatArbEV, symbols="KO,PEP,XOM,CVX,MCD,YUM,CL,PG")
+
+    # sweep(StatArbEV, symbols="KO,PEP,XOM,CVX,MCD,YUM,CL,PG",
+    #       min_reward_risk=[1.0, 1.5, 2.0])
+
+    # Needs data/prices.pkl. `python run.py fetch KO PEP XOM CVX MCD YUM CL PG
+    # --start 2021-01-01 --end 2025-01-01` downloads one.

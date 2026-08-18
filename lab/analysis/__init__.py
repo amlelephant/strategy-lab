@@ -7,8 +7,8 @@ shared, tested and reasoned about on its own, and means a strategy's file stays
 about its decision rule.
 """
 
-from .cointegration import (CointegrationResult, engle_granger, hurst,
-                            prefilter, variance_ratio)
+from .cointegration import (CointegrationResult, PairScan, engle_granger,
+                            hurst, prefilter, scan_pairs, variance_ratio)
 
-__all__ = ["CointegrationResult", "engle_granger", "hurst", "prefilter",
-           "variance_ratio"]
+__all__ = ["CointegrationResult", "PairScan", "engle_granger", "hurst",
+           "prefilter", "scan_pairs", "variance_ratio"]

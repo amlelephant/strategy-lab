@@ -10,13 +10,14 @@
 <body>
 
 <header class="bar">
-  <a class="brand" href="{{ url_for('console') }}">
+  <a class="brand" href="{{ url_for('home') }}">
     <span>strategy<span class="mark">-lab</span></span>
     <span class="caption tertiary">backtesting platform</span>
   </a>
   <nav>
-    <a href="{{ url_for('console') }}" {% if request.endpoint == 'console' %}class="on"{% endif %}>Console</a>
-    <a href="#" id="theme-toggle" class="caption" title="Switch theme">Theme</a>
+    <a href="{{ url_for('home') }}" {% if request.endpoint in ('home', 'strategy_page') %}class="on"{% endif %}>Strategies</a>
+    <a href="{{ url_for('showcase') }}" {% if request.endpoint == 'showcase' %}class="on"{% endif %}>Showcase</a>
+    <a href="#" id="theme-toggle" title="Switch theme">Theme</a>
   </nav>
 </header>
 

@@ -115,6 +115,11 @@ body {
   min-height: 100vh;
 }
 
+/* The `hidden` attribute only carries `display: none` from the UA stylesheet,
+   which any author rule outranks — `label.field { display: flex }` was quietly
+   winning, so every `el.hidden = true` in lab.js did nothing at all. */
+[hidden] { display: none !important; }
+
 /* ── type scale ─────────────────────────────────────────────────────────
    One hero per screen. Never more than about four styles on one screen. */
 
@@ -126,6 +131,13 @@ body {
              letter-spacing: -0.02em; }
 .headline  { font-size: 20px; line-height: 1.3;  font-weight: 600;
              letter-spacing: -0.01em; }
+/* Names a card, inside a section a `.headline` already named. Three steps of
+   hierarchy on the backtest form — Backtest (20) › Universe (15) › Selection
+   (12) — where card titles used to be set at the same 12px uppercase as the
+   field labels under them and read as one flat list of labels. */
+.card-title { font-size: 15px; line-height: 1.3; font-weight: 600;
+              letter-spacing: -0.005em; color: var(--text-primary);
+              margin-bottom: var(--s5); }
 .body-strong { font-size: 17px; font-weight: 600; letter-spacing: -0.005em; }
 .callout   { font-size: 15px; font-weight: 500; }
 .caption   { font-size: 13px; font-weight: 500; }
@@ -160,16 +172,21 @@ header.bar {
 .bar nav a { color: var(--text-secondary); font-size: 15px; font-weight: 500; }
 .bar nav a:hover, .bar nav a.on { color: var(--text-primary); text-decoration: none; }
 
-main { max-width: var(--page); margin: 0 auto; padding: var(--s9) var(--s6) var(--s11); }
-.page-head { margin-bottom: var(--s9); }
-.page-head .title { margin-bottom: var(--s2); }
-.page-head p { color: var(--text-secondary); max-width: 62ch; font-size: 15px; }
+main { max-width: var(--page); margin: 0 auto; padding: var(--s8) var(--s6) var(--s10); }
+.page-head { margin-bottom: var(--s8); }
+.page-head .title { margin-bottom: var(--s3); }
+.page-head p { color: var(--text-secondary); max-width: 68ch; font-size: 15px;
+               line-height: 1.55; }
 
-section + section { margin-top: var(--s9); }
+section + section { margin-top: var(--s8); }
+/* Baseline, not center: a headline and a caption of very different sizes
+   centred against each other read as misaligned, which is most of what
+   "the spacing is off" turns out to mean. */
 .section-head {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: var(--s5); margin-bottom: var(--s5);
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--s6); margin-bottom: var(--s5); flex-wrap: wrap;
 }
+.section-head > .caption, .section-head > span { text-align: right; }
 
 /* ── surfaces ───────────────────────────────────────────────────────── */
 
@@ -180,15 +197,35 @@ section + section { margin-top: var(--s9); }
   padding: var(--s7);
 }
 .card.flush { padding: 0; overflow: hidden; }
+/* Stacked cards in a column need a gap between them. Cards in a *grid* do
+   not — the grid's own gap already spaces them, and this rule matches every
+   card after the first, which pushed each one 16px down inside its stretched
+   row and left it 16px shorter than its neighbour. That was most of what
+   "the spacing looks off" was. */
 .card + .card { margin-top: var(--s5); }
+.grid > .card + .card { margin-top: 0; }
+/* Flex column so the source path pins to the bottom edge: cards in a row are
+   the same height, so the paths line up across the grid instead of floating
+   at whatever height each summary happened to end at. */
+.card.link { display: flex; flex-direction: column; color: inherit;
+             text-decoration: none;
+             transition: border-color var(--fast) var(--ease); }
+.card.link:hover { border-color: var(--border-strong); text-decoration: none; }
+.card.link > .mono { margin-top: auto; padding-top: var(--s5); }
 
 .grid { display: grid; gap: var(--s5); }
 .grid.two   { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .grid.four  { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+/* Five stat tiles wrap to two rows rather than shrink to unreadable columns. */
+.grid.five  { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .grid.split { grid-template-columns: minmax(0, 1fr) 380px; align-items: start; }
+@media (max-width: 1100px) {
+  .grid.five { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 @media (max-width: 900px) {
   .grid.two, .grid.three, .grid.four, .grid.split { grid-template-columns: 1fr; }
+  .grid.five { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* ── stat tile ──────────────────────────────────────────────────────── */
@@ -200,12 +237,17 @@ section + section { margin-top: var(--s9); }
 
 /* ── buttons ────────────────────────────────────────────────────────── */
 
-button, .btn {
-  font-family: inherit; font-size: 15px; font-weight: 600;
+/* Every variant is listed here, not just `button` and `.btn`. An
+   `<a class="btn-primary">` matches neither of those, so it used to inherit
+   the body's 17px with none of the padding or height — a pill with oversized
+   text, wherever a button was really a link (footer bars, error pages). */
+button, .btn, .btn-primary, .btn-secondary, .btn-quiet {
+  font-family: inherit; font-size: 14px; font-weight: 600;
+  line-height: 1; letter-spacing: -0.005em;
   border-radius: var(--r-md); border: 1px solid transparent;
-  padding: 0 var(--s6); height: 44px;
+  padding: 0 var(--s5); height: 38px;
   display: inline-flex; align-items: center; justify-content: center;
-  gap: var(--s3); cursor: pointer;
+  gap: var(--s3); cursor: pointer; white-space: nowrap;
   transition: background var(--fast) var(--ease),
               border-color var(--fast) var(--ease),
               transform var(--fast) var(--ease);
@@ -220,9 +262,9 @@ button, .btn {
 }
 .btn-secondary:hover { background: var(--surface-pressed); text-decoration: none; }
 .btn-quiet {
-  background: transparent; color: var(--text-secondary); height: 32px;
-  padding: 0 var(--s4); font-size: 13px; border-color: var(--border);
-  border-radius: var(--r-full);
+  background: transparent; color: var(--text-secondary); height: 30px;
+  padding: 0 var(--s4); font-size: 12.5px; font-weight: 500;
+  border-color: var(--border); border-radius: var(--r-full);
 }
 .btn-quiet:hover { color: var(--text-primary); border-color: var(--border-strong); }
 .btn-quiet.on { color: var(--accent); border-color: var(--accent);
@@ -258,6 +300,13 @@ select {
   padding-right: var(--s9);
 }
 input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
+/* A select that sits in a section header beside a headline, rather than in a
+   form column: sized to its own text so it does not stretch across the row. */
+select.compact {
+  width: auto; padding: var(--s2) var(--s6) var(--s2) var(--s4);
+  font-size: 13px; background-position: right var(--s3) center;
+}
+
 .field-row { display: flex; align-items: center; gap: var(--s3); }
 .field-row input[type="checkbox"] { flex: none; }
 
@@ -278,9 +327,31 @@ input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent);
 .pick .meta .name { display: flex; align-items: center; gap: var(--s3);
                     margin-bottom: var(--s1); }
 .pick .meta p { font-size: 13px; color: var(--text-secondary); line-height: 1.45; }
-.pick.on { }
-.pick .config { margin-top: var(--s5); display: none; }
-.pick.on .config { display: grid; }
+
+/* ── the source path, and the code blocks that point at it ──────────── */
+
+.path-row { display: flex; align-items: center; gap: var(--s4);
+            justify-content: space-between; flex-wrap: wrap;
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: var(--r-md); padding: var(--s4) var(--s5); }
+.path-row code { word-break: break-all; color: var(--text-primary); }
+.code-block { background: var(--surface-raised); border: 1px solid var(--border);
+              border-radius: var(--r-md); padding: var(--s5);
+              overflow-x: auto; line-height: 1.7; color: var(--text-primary); }
+
+/* ── comparison chips ───────────────────────────────────────────────── */
+
+.compare { display: flex; flex-wrap: wrap; gap: var(--s3); }
+.chip { display: inline-flex; align-items: center; gap: var(--s3);
+        padding: var(--s3) var(--s5); border-radius: var(--r-full);
+        border: 1px solid var(--border); background: var(--surface-raised);
+        font-size: 13px; color: var(--text-secondary); cursor: pointer;
+        transition: border-color var(--fast) var(--ease),
+                    color var(--fast) var(--ease); }
+.chip:hover { border-color: var(--border-strong); color: var(--text-primary); }
+.chip:has(input:checked) { border-color: var(--accent); color: var(--accent);
+                           background: var(--accent-tint); }
+.chip input { width: 14px; height: 14px; }
 
 .badge {
   display: inline-flex; align-items: center; height: 20px; padding: 0 var(--s3);
@@ -343,9 +414,30 @@ table.data td.name, table.data th.name { white-space: nowrap; font-weight: 600; 
 /* ── progress ───────────────────────────────────────────────────────── */
 
 .progress { height: 2px; background: var(--border); border-radius: var(--r-full);
-            overflow: hidden; }
-.progress > i { display: block; height: 100%; width: 0;
+            overflow: hidden; position: relative; }
+/* A scan that sweeps the whole track independent of the real fill below it.
+   `job.progress` can sit at 0% for a while — loading a dataset, building a
+   universe — and a bar that is not visibly moving reads as hung rather than
+   working. */
+.progress::after { content: ""; position: absolute; inset: 0;
+                    background: linear-gradient(90deg, transparent,
+                      var(--accent-tint) 45%, var(--accent-tint) 55%, transparent);
+                    background-size: 250% 100%;
+                    animation: progress-scan 1.6s linear infinite; }
+.progress > i { display: block; height: 100%; width: 0; position: relative; z-index: 1;
                 background: var(--accent); transition: width var(--base) var(--ease); }
+
+@keyframes progress-scan {
+  from { background-position: 100% 0; }
+  to   { background-position: -150% 0; }
+}
+
+#running .overline { animation: running-pulse 1.6s var(--ease) infinite; }
+
+@keyframes running-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
 
 /* ── log lines ──────────────────────────────────────────────────────── */
 
@@ -374,13 +466,52 @@ table.data td.name, table.data th.name { white-space: nowrap; font-weight: 600; 
 .footer-bar {
   position: sticky; bottom: 0; z-index: 30;
   display: flex; align-items: center; justify-content: space-between;
-  gap: var(--s5);
-  margin: var(--s9) calc(var(--s6) * -1) 0;
-  padding: var(--s5) var(--s6);
-  background: var(--bg); border-top: 1px solid var(--border);
+  gap: var(--s6); flex-wrap: wrap;
+  margin: var(--s8) calc(var(--s6) * -1) 0;
+  padding: var(--s4) var(--s6);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: saturate(180%) blur(12px);
+  border-top: 1px solid var(--border);
 }
 .footer-bar .status { font-size: 13px; color: var(--text-secondary);
                       font-variant-numeric: tabular-nums; }
+/* A rejected run used to land here as one more line of grey text at the far
+   end of the bar from the button that was just pressed, which reads as
+   nothing having happened at all. An error is the one status worth
+   interrupting for. */
+.footer-bar .status.error {
+  color: var(--danger); font-weight: 500;
+  background: var(--danger-tint); border-radius: var(--r-sm);
+  padding: var(--s3) var(--s4); max-width: 78ch;
+}
+
+/* A qualifier under a page's lede. Set apart by a rule rather than by being
+   another paragraph of the same grey, so the lede stays one thing to read. */
+.page-note {
+  margin-top: var(--s5); padding-left: var(--s5);
+  border-left: 2px solid var(--border);
+  max-width: 68ch; font-size: 13px; line-height: 1.5;
+  color: var(--text-tertiary);
+}
+
+/* ── showcase card ──────────────────────────────────────────────────────
+   Four stacked bands with one padding value between them, replacing the
+   per-element inline padding this card used to carry. */
+.show-card { display: flex; flex-direction: column; }
+.show-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: var(--s4); padding: var(--s6) var(--s6) 0;
+}
+.show-head .badge { flex: none; }
+.show-head .caption { max-width: 46ch; }
+.show-body { display: grid; gap: var(--s5); padding: var(--s5) var(--s6) 0; }
+.show-foot {
+  margin-top: auto; padding: var(--s5) var(--s6) var(--s6);
+  border-top: 1px solid var(--border);
+}
+.show-foot p { margin: 0 0 var(--s3); }
+.show-empty { padding: var(--s6); }
+.show-empty p { margin: 0; }
 
 .prose { max-width: 68ch; color: var(--text-secondary); font-size: 15px;
          line-height: 1.6; }
@@ -389,6 +520,44 @@ table.data td.name, table.data th.name { white-space: nowrap; font-weight: 600; 
               background: var(--surface-raised); padding: 1px 5px;
               border-radius: var(--r-xs); color: var(--text-primary); }
 
+/* A write-up's own markdown runs wider than a one-paragraph note, so it gets
+   the rest of the elements a research doc actually uses. */
+.prose.md { max-width: none; }
+.prose h2, .prose h3, .prose h4 {
+  color: var(--text-primary); font-weight: 600; letter-spacing: -0.01em;
+  margin: var(--s8) 0 var(--s4);
+}
+.prose h2 { font-size: 19px; }
+.prose h3 { font-size: 16px; }
+.prose h4 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em;
+            color: var(--text-tertiary); }
+.prose > :first-child { margin-top: 0; }
+.prose strong { color: var(--text-primary); font-weight: 600; }
+.prose a { color: var(--accent); text-decoration: none; }
+.prose a:hover { text-decoration: underline; }
+.prose a code { color: inherit; }
+.prose ul, .prose ol { margin: var(--s5) 0; padding-left: var(--s7); }
+.prose li { margin: var(--s2) 0; }
+.prose li + li { margin-top: var(--s3); }
+.prose hr { border: none; border-top: 1px solid var(--border);
+           margin: var(--s8) 0; }
+.prose blockquote { margin: var(--s5) 0; padding: var(--s4) var(--s5);
+                    border-left: 2px solid var(--border-strong);
+                    color: var(--text-tertiary); }
+.prose pre { margin: var(--s5) 0; padding: var(--s5); overflow-x: auto;
+            background: var(--surface-raised); border: 1px solid var(--border);
+            border-radius: var(--r-md); }
+.prose pre code { background: none; padding: 0; font-size: 13px;
+                  line-height: 1.6; color: var(--text-secondary); }
+.prose table.prose-table { margin: var(--s5) 0; font-size: 13px; }
+.prose table.prose-table td, .prose table.prose-table th {
+  white-space: normal; padding: var(--s3) var(--s5);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { transition-duration: 1ms !important; }
+  *, *::before, *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

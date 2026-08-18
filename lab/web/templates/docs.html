@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Running from the code — strategy-lab{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1 class="title">Running from the code</h1>
+  <p>This page runs a strategy exactly as its file declares it. Parameters are
+     chosen in the file, and sweeps run in the terminal.</p>
+</div>
+
+<section style="margin-top:0">
+  <div class="section-head"><h2 class="headline">One strategy</h2></div>
+  <div class="card">
+    <p class="caption tertiary" style="margin:0 0 var(--s5)">
+      Every strategy file ends with a <code>__main__</code> block. Run it as a
+      module, so its relative imports resolve.
+    </p>
+    <pre class="code-block mono">python -m lab.strategies.hundred_day_mov_avg</pre>
+  </div>
+</section>
+
+<section>
+  <div class="section-head"><h2 class="headline">The two calls</h2></div>
+  <div class="card">
+    <pre class="code-block mono">from lab import backtest, sweep
+
+backtest(HundredDayMovAvg, data="market_spy.csv", symbols="SPY")
+backtest(HundredDayMovAvg, symbols="SPY", window=200)
+sweep(HundredDayMovAvg, symbols="SPY", window=[50, 100, 200])</pre>
+    <div class="divider"></div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th class="name">Argument</th><th>Default</th><th>What it is</th></tr></thead>
+        <tbody>
+          <tr><td class="name"><code>data</code></td><td class="secondary"><code>prices.pkl</code></td><td class="secondary">A real price file under <code>data/</code>. No generated option.</td></tr>
+          <tr><td class="name"><code>symbols</code></td><td class="secondary">—</td><td class="secondary"><code>"KO,PEP"</code>. Pair strategies take them two at a time.</td></tr>
+          <tr><td class="name"><code>fundamentals</code></td><td class="secondary">—</td><td class="secondary">Fundamentals JSON under <code>data/</code>.</td></tr>
+          <tr><td class="name"><code>all_with_fundamentals</code></td><td class="secondary"><code>False</code></td><td class="secondary">Every company that has filed.</td></tr>
+          <tr><td class="name"><code>start</code>, <code>end</code></td><td class="secondary">—</td><td class="secondary">Trim the date range.</td></tr>
+          <tr><td class="name"><code>scenario</code></td><td class="secondary"><code>realistic</code></td><td class="secondary">frictionless · optimistic · realistic · conservative</td></tr>
+          <tr><td class="name"><code>timing</code></td><td class="secondary"><code>next_open</code></td><td class="secondary">Or <code>close</code>, which flatters.</td></tr>
+          <tr><td class="name"><code>cash</code>, <code>seed</code></td><td class="secondary"><code>100_000</code>, <code>7</code></td><td class="secondary"></td></tr>
+          <tr><td class="name">anything else</td><td class="secondary">—</td><td class="secondary">A strategy parameter. A list of them, for <code>sweep</code>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="section-head"><h2 class="headline">Why parameters are not on the page</h2></div>
+  <div class="card">
+    <div class="prose">
+      <p>A parameter value is a fact about a strategy's file. The moment a form
+         can change one, the file stops being the answer to "what does this
+         strategy do", and two runs of the same strategy stop being comparable.
+         The interface offers what belongs to a <em>run</em> — which data, which
+         universe, which frictions — and links to the file for the rest.</p>
+      <p>A sweep prints its grid and its verdict to the terminal and is never
+         saved. The best Sharpe out of many tries is mostly a measurement of how
+         many tries you had, which is a number to read beside the code that
+         produced it, not to publish on a page. Read
+         <code>verdict()</code>, not row one.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="section-head"><h2 class="headline">The command line</h2></div>
+  <div class="card">
+    <pre class="code-block mono">python run.py list
+python run.py backtest stat_arb --symbols KO,PEP
+python run.py sweep mean_reversion --symbols KO,PEP,XOM,CVX
+python run.py fetch AAPL MSFT --start 2020-01-01 --end 2024-12-31
+python run.py fetch-market
+python run.py serve</pre>
+    <div class="divider"></div>
+    <p class="caption tertiary" style="margin:0">
+      <code>fetch-market</code> writes the two series every result is measured
+      against — the S&amp;P 500 and the 13-week T-bill.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="section-head"><h2 class="headline">Adding a strategy</h2></div>
+  <div class="card">
+    <p class="caption tertiary" style="margin:0 0 var(--s5)">
+      One file, plus one import line in
+      <code class="mono">lab/strategies/__init__.py</code>. The contract is
+      <code class="mono">AGENTS.md</code>.
+    </p>
+    <pre class="code-block mono">from .my_strategy import MyStrategy</pre>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>Lab.docs();</script>
+{% endblock %}

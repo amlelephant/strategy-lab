@@ -5,67 +5,191 @@
 <div class="page-head">
   <div style="display:flex; align-items:center; gap:var(--s4); margin-bottom:var(--s3)">
     <span class="badge">{{ strategy.universe }}</span>
-    <span class="badge accent">{{ strategy.key }}</span>
+    {% if strategy.provenance %}<span class="badge">ported</span>{% endif %}
   </div>
   <h1 class="title">{{ strategy.title }}</h1>
   <p>{{ strategy.summary }}</p>
 </div>
 
-{% if strategy.notes %}
+<!-- ── where the code is ────────────────────────────────────────────── -->
 <section style="margin-top:0">
   <div class="card">
-    <div class="overline" style="margin-bottom:var(--s5)">What it claims</div>
-    <div class="prose"><p>{{ strategy.notes }}</p></div>
+    <div class="card-title">The code</div>
+    <div class="path-row">
+      <code class="mono" id="source-path">{{ strategy.source_path }}</code>
+      <button type="button" class="btn-quiet" id="copy-path"
+              data-path="{{ strategy.source_path }}">Copy</button>
+    </div>
+    <p class="caption tertiary" style="margin:var(--s5) 0 0">
+      <a href="{{ url_for('docs_page') }}">Running it from the code →</a>
+    </p>
   </div>
 </section>
-{% endif %}
 
-{% if strategy.provenance %}
-<section>
-  <div class="card">
-    <div class="overline" style="margin-bottom:var(--s5)">Provenance</div>
-    <div class="prose"><p>{{ strategy.provenance }}</p></div>
-  </div>
-</section>
-{% endif %}
-
+<!-- ── the backtest ───────────────────────────────────────────────────
+     The <form> lives *inside* the section, not around it: wrapping the
+     section broke the `section + section` adjacency that spaces these
+     apart, so this heading sat flush against the card above it. The run
+     button in the footer bar reaches the form by its `form=` attribute,
+     so nothing needs the form to be an ancestor. -->
 <section>
   <div class="section-head">
-    <h2 class="headline">Parameters</h2>
-    <span class="caption tertiary">{{ strategy.params|length }} declared ·
-      the console builds its form from this table</span>
+    <h2 class="headline">Backtest</h2>
   </div>
-  <div class="card flush">
-    <div class="table-wrap">
-      <table class="data">
-        <thead><tr>
-          <th class="name">Name</th><th>Type</th><th>Default</th>
-          <th>Range</th><th>Sweep grid</th><th class="wrap">What it does</th>
-        </tr></thead>
-        <tbody>
-        {% for p in strategy.params %}
-          <tr>
-            <td class="name mono">{{ p.name }}</td>
-            <td class="secondary">{{ p.kind }}</td>
-            <td>{{ p.default }}</td>
-            <td class="secondary">
-              {%- if p.choices %}{{ p.choices|join(' · ') }}
-              {%- elif p.low is not none or p.high is not none -%}
-                {{ p.low if p.low is not none else '−∞' }} to {{ p.high if p.high is not none else '∞' }}
-              {%- else -%}—{% endif %}
-            </td>
-            <td class="secondary">{{ p.grid|join(', ') if p.grid else '—' }}</td>
-            <td class="wrap">{{ p.help }}</td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
+
+  <form id="run-form" data-key="{{ strategy.key }}" data-universe="{{ strategy.universe }}">
+  <div class="grid split">
+    <div>
+      <div class="card">
+        <div class="card-title">Universe</div>
+        <div class="fields">
+          <label class="field">
+            <span>Selection</span>
+            <select name="universe_mode" id="universe-mode">
+              <option value="symbols" {% if strategy.universe != 'cross' %}selected{% endif %}>Named symbols</option>
+              <option value="fundamentals" {% if strategy.universe == 'cross' %}selected{% endif %}>Every company with fundamentals</option>
+              <option value="all">Every symbol in the price file</option>
+            </select>
+            {% if strategy.universe == 'pair' %}
+            <span class="hint">Consumed two at a time</span>
+            {% elif strategy.universe == 'cross' %}
+            <span class="hint">Ranks against peers — needs fundamentals</span>
+            {% endif %}
+            <span class="hint" id="universe-notice" hidden></span>
+          </label>
+
+          <label class="field" id="symbols-field">
+            <span>Symbols</span>
+            <textarea name="symbols" placeholder="KO, PEP, XOM, CVX">{{ strategy.default_symbols or 'KO, PEP, XOM, CVX' }}</textarea>
+          </label>
+
+          <div class="fields two">
+            <label class="field"><span>Start</span>
+              <input type="date" name="start"></label>
+            <label class="field"><span>End</span>
+              <input type="date" name="end"></label>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        <p class="caption tertiary" style="margin:0">
+          Survivorship-biased — delisted tickers are absent. Read results as an
+          upper bound.
+        </p>
+      </div>
+
+    </div>
+
+    <div>
+      <div class="card">
+        <div class="card-title">Data</div>
+        <div class="fields">
+          <label class="field">
+            <span>Prices</span>
+            <select name="dataset" id="dataset">
+              {% for d in datasets %}
+              <option value="{{ d.id }}" {% if d.id == chosen_dataset %}selected{% endif %}>{{ d.label }}{% if d.size_mb %} · {{ d.size_mb }} MB{% endif %}</option>
+              {% else %}
+              <option value="">no price files in data/</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="field">
+            <span>Fundamentals</span>
+            <select name="fundamentals">
+              <option value="">none</option>
+              {% for f in fundamentals %}
+              <option value="{{ f.id }}" {% if strategy.universe == 'cross' and loop.first %}selected{% endif %}>{{ f.label }} · {{ f.size_mb }} MB</option>
+              {% endfor %}
+            </select>
+            <span class="hint">Indexed by filing date</span>
+          </label>
+          <div class="caption tertiary" id="dataset-info">—</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Frictions</div>
+        <div class="fields">
+          <label class="field">
+            <span>Scenario</span>
+            <select name="scenario" id="scenario">
+              {% for s in scenarios %}
+              <option value="{{ s }}" {% if s == 'realistic' %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <div class="fields two">
+            <label class="field"><span>Commission bps</span>
+              <input type="number" name="commission_bps" value="1.0" step="0.5" min="0"></label>
+            <label class="field"><span>Slippage bps</span>
+              <input type="number" name="slippage_bps" value="2.0" step="0.5" min="0"></label>
+          </div>
+          <label class="field">
+            <span>Fill timing</span>
+            <select name="timing">
+              <option value="next_open">Next bar's open</option>
+              <option value="close">Signal bar's close</option>
+            </select>
+            <span class="hint">Signal-bar close flatters — comparison only</span>
+          </label>
+          <div class="fields two">
+            {# step 1000, not 10000: the browser's step grid starts at `min`,
+               so min=1000 with step=10000 makes 100000 an invalid value. #}
+            <label class="field"><span>Starting cash</span>
+              <input type="number" name="starting_cash" value="100000" step="1000" min="1000"></label>
+            <label class="field"><span>Seed</span>
+              <input type="number" name="seed" value="7" step="1"></label>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
+  </form>
 </section>
 
+{# "What it claims" (strategy.notes) and "Provenance" used to render here.
+   Both are notes to whoever maintains the file — a claim to falsify and a
+   record of where a port came from — and neither helps a reader working out
+   what the strategy does. They stay on the class and in
+   research/ported-changes.md, which is where a maintainer looks. #}
+
+{% if writeup %}
+<section>
+  <div class="section-head">
+    <h2 class="headline">Research</h2>
+    <code class="mono caption tertiary">{{ writeup_path }}</code>
+  </div>
+  <div class="card">
+    <div class="prose md">{{ writeup|safe }}</div>
+  </div>
+</section>
+{% endif %}
+
+{% if runs %}
+<section>
+  <div class="section-head">
+    <h2 class="headline">Previous runs</h2>
+  </div>
+  <div class="card flush">
+    <table class="data"><tbody>
+      {% for j in runs %}
+      <tr>
+        <td class="name"><a href="{{ url_for('run_page', job_id=j.id) }}">{{ j.label|truncate(46) }}</a></td>
+        <td class="secondary caption">{{ j.created }}</td>
+      </tr>
+      {% endfor %}
+    </tbody></table>
+  </div>
+</section>
+{% endif %}
+
 <div class="footer-bar">
-  <div class="status">Contract: <code class="mono">on_bar(ctx) -&gt; list[Order]</code></div>
-  <a class="btn-primary" href="{{ url_for('console') }}">Back to the console</a>
+  <div class="status" id="run-status">Ready.</div>
+  <button type="submit" form="run-form" class="btn-primary" id="run-btn">Run backtest</button>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>Lab.strategy();</script>
 {% endblock %}

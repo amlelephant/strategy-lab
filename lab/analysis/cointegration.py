@@ -35,13 +35,15 @@ difference stays measurable rather than described.
 
 from __future__ import annotations
 
+import itertools
 import math
 from dataclasses import dataclass
+from typing import Callable
 
 import numpy as np
 
-__all__ = ["CointegrationResult", "engle_granger", "prefilter", "hurst",
-           "variance_ratio"]
+__all__ = ["CointegrationResult", "PairScan", "engle_granger", "prefilter",
+           "hurst", "variance_ratio", "scan_pairs"]
 
 
 @dataclass(frozen=True)
@@ -234,6 +236,71 @@ def variance_ratio(series: np.ndarray, period: int = 5) -> float:
         returns, np.arange(0, len(returns) - len(returns) % period, period))
     var_k = float(np.var(aggregated, ddof=1))
     return var_k / (period * var_one)
+
+
+@dataclass(frozen=True)
+class PairScan:
+    """One pair's place in a scan across a universe."""
+
+    a: str
+    b: str
+    result: CointegrationResult
+    tradeable: bool          # cointegrated at the *corrected* level, and correcting
+
+
+def scan_pairs(prices: dict[str, np.ndarray], *, level: float = 0.05,
+               max_half_life: float = 60.0, correction: str = "bonferroni",
+               progress: Callable[[float, str], None] | None = None,
+               ) -> list[PairScan]:
+    """Engle-Granger over every pair in a universe, prefiltered for cost.
+
+    `prices` maps symbol to an aligned, NaN-free close series — same length
+    and same calendar for every entry, which is the caller's job (a `Dataset`
+    slice already guarantees it for a fixed date range).
+
+    Two things a naive "test every pair, keep p < 0.05" scan gets wrong at
+    this scale, both handled here:
+
+    **The search itself is not free.** `prefilter()` (correlation, Hurst,
+    variance ratio — all O(n), no regression) runs first and only pairs that
+    clear it pay for the real test, because two names that never even look
+    related are not worth a `statsmodels.coint()` call. This is a cost
+    optimisation, not a statistical one — it does not change which pairs are
+    reported as tradeable, only how long finding them takes. On a bull-market
+    sample the prefilter alone still passes a large fraction of pairs (the
+    market co-movement problem this whole module exists to catch), so the
+    saving is real but bounded.
+
+    **Testing N pairs at p < 0.05 finds ~0.05N false positives by chance
+    alone**, even if nothing in the universe is truly related. At a few
+    hundred names this is dozens of pairs, not one or two. `correction="bonferroni"`
+    (the default) divides `level` by the number of pairs that actually reached
+    the expensive test, so `is_tradeable` is evaluated against a threshold
+    that accounts for how many chances the scan had to be wrong. Pass
+    `correction=None` to see the uncorrected — and inflated — count instead.
+    """
+    symbols = sorted(prices)
+    pairs = list(itertools.combinations(symbols, 2))
+    total = len(pairs)
+
+    candidates: list[tuple[str, str, CointegrationResult]] = []
+    for i, (a, b) in enumerate(pairs):
+        y, x = prices[a], prices[b]
+        ok, _ = prefilter(y, x)
+        if ok:
+            candidates.append((a, b, engle_granger(y, x)))
+        if progress and (i % 200 == 0 or i == total - 1):
+            progress((i + 1) / total, f"{a}/{b}")
+
+    tested = len(candidates)
+    effective_level = level / tested if (correction == "bonferroni" and tested) \
+        else level
+
+    scans = [PairScan(a, b, result,
+                      tradeable=result.is_tradeable(effective_level, max_half_life))
+             for a, b, result in candidates]
+    scans.sort(key=lambda s: s.result.p_value)
+    return scans
 
 
 def prefilter(y: np.ndarray, x: np.ndarray, *, min_correlation: float = 0.5,

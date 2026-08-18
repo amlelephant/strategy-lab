@@ -200,3 +200,17 @@ class StatArb(Strategy):
                                      reason=reason, **meta))
 
         return orders or HOLD
+
+
+# Run this file directly to test it — `python -m lab.strategies.stat_arb`.
+# The only place a parameter value is chosen: the GUI has no control for one.
+if __name__ == "__main__":
+    from ..api import backtest, sweep                          # noqa: F401
+
+    backtest(StatArb, symbols="KO,PEP,XOM,CVX")
+
+    # sweep(StatArb, symbols="KO,PEP,XOM,CVX",
+    #       entry_z=[1.5, 2.0, 2.5])
+
+    # Needs data/prices.pkl. `python run.py fetch KO PEP XOM CVX
+    # --start 2021-01-01 --end 2025-01-01` downloads one.

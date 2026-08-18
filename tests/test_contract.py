@@ -18,7 +18,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from lab import Hub, RunConfig, all_strategies, build, synthetic
+from lab import Hub, RunConfig, all_strategies, build
+from synthetic_prices import synthetic
 from lab.core.contract import Intent, MarketContext, Order, ParamKind, Side
 from lab.data.dataset import Dataset
 

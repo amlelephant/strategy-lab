@@ -13,6 +13,11 @@ A `Dataset` is two things glued to one clock:
   * **Fundamentals** — quarterly records per symbol, indexed by the date they
     became *knowable* rather than the date they describe.
 
+  * **A market benchmark** — one price series, aligned to the same clock, that
+    every result is measured against. It is deliberately *not* a column in the
+    price frames: a tradeable benchmark is a benchmark a strategy can end up
+    holding, and "every symbol in the price file" would quietly include it.
+
 That second point is the one that matters. A record for the quarter ending
 2021-06-30 did not exist on 2021-06-30; it appeared in a filing some weeks
 later. Every fundamentals backtest that ranks companies on quarter-end dates
@@ -72,6 +77,9 @@ class Dataset:
         fundamentals: Mapping[str, list[FundamentalRecord]] | None = None,
         name: str = "dataset",
         report_lag_days: int = 60,
+        benchmark: pd.Series | None = None,
+        benchmark_label: str = "",
+        risk_free: pd.Series | None = None,
     ) -> None:
         if CLOSE not in fields:
             raise ValueError("a Dataset needs at least a 'close' frame")
@@ -115,7 +123,48 @@ class Dataset:
         }
         self._field_values: dict[tuple[str, str], np.ndarray] = {}
 
+        #: The market series every result is measured against, on this
+        #: dataset's own clock, or None when no benchmark was supplied.
+        self.benchmark, self.benchmark_label = self._align_benchmark(
+            benchmark, benchmark_label)
+
+        #: Annualised risk-free rate per bar, as a decimal (0.042 = 4.2%), or
+        #: None. Sharpe and alpha are both defined on returns *in excess of*
+        #: this; with it missing they silently assume cash pays nothing, which
+        #: flatters every strategy and flatters low-beta strategies most.
+        self.risk_free = self._align_rate(risk_free)
+
         self.periods_per_year, self.bar_seconds = self._infer_frequency()
+
+    def _align_rate(self, series) -> pd.Series | None:
+        if series is None or len(series) == 0:
+            return None
+        aligned, _ = self._align_benchmark(series, "rate")
+        return aligned if aligned is None else aligned.ffill().bfill()
+
+    def _align_benchmark(self, series, label: str
+                         ) -> tuple[pd.Series | None, str]:
+        """Put a benchmark series on this dataset's index.
+
+        Forward-filled through the union of both indices before being cut down,
+        so a benchmark that does not print on one of this dataset's bars
+        carries its last known level rather than a hole. Leading gaps — a
+        dataset that starts before the benchmark does — stay NaN; whoever
+        normalises the series decides where it begins.
+        """
+        if series is None or len(series) == 0:
+            return None, ""
+        series = pd.Series(series).astype(float).sort_index()
+        if not isinstance(series.index, pd.DatetimeIndex):
+            series.index = pd.to_datetime(series.index)
+        series = series[~series.index.duplicated(keep="last")]
+
+        aligned = (series.reindex(self.index.union(series.index))
+                         .ffill()
+                         .reindex(self.index))
+        if not np.isfinite(aligned.to_numpy(dtype=float)).any():
+            return None, ""
+        return aligned, label or "benchmark"
 
     # ── construction helpers ───────────────────────────────────────────
     @classmethod
@@ -138,18 +187,29 @@ class Dataset:
         Symbols with no price column are dropped rather than raising — a
         universe of 1,900 tickers assembled from a fundamentals file will
         always contain a few that never priced.
+
+        A symbol may legitimately repeat — a pair universe naming every leg
+        of several distinct pairs names the shared one more than once, e.g.
+        `AGIO,ARL,AGIO,CMC`. `symbols` keeps every repeat, because `ctx.pairs`
+        reads positions from it. The underlying frames must not: `v[keep]`
+        with a repeated label produces a frame with two same-named columns,
+        and `close[sym]` on that returns a 2-D slice instead of a series —
+        `price_at` then fails trying to treat that as one float.
         """
         keep = [s for s in symbols if s in self._fields[CLOSE].columns]
         dropped = [s for s in symbols if s not in self._fields[CLOSE].columns]
         if not keep:
             raise KeyError(
                 f"{self.name}: none of {list(symbols)[:8]} have prices")
+        unique_keep = list(dict.fromkeys(keep))
         view = Dataset(
-            {k: v[keep] for k, v in self._fields.items()},
+            {k: v[unique_keep] for k, v in self._fields.items()},
             symbols=keep,
             fundamentals={s: self.fundamentals[s] for s in keep
                           if s in self.fundamentals},
-            name=self.name, report_lag_days=self.report_lag_days)
+            name=self.name, report_lag_days=self.report_lag_days,
+            benchmark=self.benchmark, benchmark_label=self.benchmark_label,
+            risk_free=self.risk_free)
         # Surfaced by the hub as a run warning. A universe that quietly
         # shrinks is how a backtest ends up reporting on a different set of
         # companies than the one it claims to test.
@@ -167,7 +227,10 @@ class Dataset:
         return Dataset(
             {k: v.loc[mask] for k, v in self._fields.items()},
             symbols=self.symbols, fundamentals=self.fundamentals,
-            name=self.name, report_lag_days=self.report_lag_days)
+            name=self.name, report_lag_days=self.report_lag_days,
+            benchmark=None if self.benchmark is None else self.benchmark[mask],
+            benchmark_label=self.benchmark_label,
+            risk_free=None if self.risk_free is None else self.risk_free[mask])
 
     def drop_incomplete(self, min_coverage: float = 0.95) -> "Dataset":
         """Drop symbols priced on less than `min_coverage` of the bars."""
@@ -282,6 +345,9 @@ class Dataset:
             "has_fundamentals": bool(self.fundamentals),
             "fundamental_symbols": len(self.fundamentals),
             "report_lag_days": self.report_lag_days,
+            "benchmark": self.benchmark_label or None,
+            "risk_free": (None if self.risk_free is None
+                          else round(float(self.risk_free.mean()), 5)),
         }
 
     def __len__(self) -> int:

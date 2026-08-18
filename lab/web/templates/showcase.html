@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Showcase — strategy-lab{% endblock %}
+
+{% block content %}
+{# The lede is one paragraph on purpose. Everything qualifying it sits in the
+   footnote below, so the copy can be rewritten without unpicking a layout. #}
+<div class="page-head">
+  <h1 class="title">Showcase</h1>
+  <p>strategy-lab is a comprehensive backtesting platform designed for validation of personal strategies. Each result listed below is a real backtest from the development of that particular strategy. The headline statistics is the "vs Market" percentage which is the percentage difference from the S&amp;P 500 over the same time period tested.</p>
+      
+</div>
+
+<section style="margin-top:0">
+  <div class="grid two">
+    {% for row in rows %}
+    {% set s = row.strategy %}
+    <div class="card flush show-card">
+      <div class="show-head">
+        <div>
+          <div class="card-title" style="margin-bottom:var(--s1)">{{ s.title }}</div>
+          <div class="caption secondary">{{ s.summary }}</div>
+        </div>
+        <a class="badge" href="{{ url_for('strategy_page', key=s.key) }}">{{ s.key }}</a>
+      </div>
+
+      {% if row.featured %}
+      <div class="show-body">
+        <div class="grid four" id="stats-{{ s.key }}"></div>
+        <svg class="chart" id="chart-{{ s.key }}" height="130" preserveAspectRatio="none"
+             role="img" aria-label="{{ s.title }} equity against the S&amp;P 500"></svg>
+      </div>
+
+      <div class="show-foot">
+        <p class="caption secondary" id="verdict-{{ s.key }}"></p>
+        <a class="caption" href="{{ url_for('run_page', job_id=row.featured.run_id) }}">full result →</a>
+      </div>
+
+      <script type="application/json" id="data-{{ s.key }}">{{ row.featured | tojson }}</script>
+      {% else %}
+      <div class="show-empty">
+        <p class="caption secondary">Not run yet —
+          <a href="{{ url_for('strategy_page', key=s.key) }}">run one</a></p>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>Lab.showcase({{ rows | selectattr('featured') | map(attribute='strategy.key') | list | tojson }});</script>
+{% endblock %}

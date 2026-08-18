@@ -31,19 +31,55 @@ less trustworthy, it is the wrong change.
   date, never by period end.
 - **No I/O inside a run.** No network, no disk, no `datetime.now()`, no
   unseeded randomness in `on_bar` or anything it calls. Fetching is a separate
-  command that caches to disk.
+  command that caches to disk; the network access happens before the run,
+  never inside `on_bar`.
 - **Costs are never optional by default.** `frictionless` exists as a named
   comparison scenario, not as a default.
 - **Significance travels with the result.** Anywhere a Sharpe is displayed, its
   t-statistic and observation count are displayed too. Do not add a summary
   view that drops them.
-- **Synthetic data is always labelled as synthetic**, everywhere it appears.
+- **The verdict is the market comparison, not alpha and not Sharpe.** The
+  headline on every surface is `active_return` — annualised
+  (strategy − benchmark), whether it ended with more money than the S&P 500.
+  A strategy that merely rode a rising market has a high Sharpe and no edge;
+  one that sat in cash has a high alpha and no money.
+- **Never claim alpha while losing to the index.** Alpha over a small beta is
+  a large number for anything that made money without market exposure — a
+  market-neutral book returning 3% while the index returned 16% scores +3%
+  alpha at beta 0.00. `has_alpha` therefore requires *outperformance as well
+  as* a surviving t-test, and no badge, verdict or heading says "beats the
+  market" about a strategy that did not. Alpha is reported as a secondary
+  figure, always beside the beta that gives it meaning.
+- **The risk-free rate is a series, never zero.** Sharpe and alpha are both
+  defined on excess returns. Regressing raw returns yields `rf·(1 − β)` of
+  alpha nobody earned, concentrated in cash-holding strategies.
+  `data/riskfree_3m.csv` (13-week T-bill, committed) is threaded through
+  `Dataset.risk_free`; the hub warns when it is missing.
+- **The benchmark is the market, not the universe.** Alpha and beta are
+  measured against the S&P 500 (`data/market_spy.csv`, SPY, committed), never
+  against an equal-weight hold of the names the run happened to select —
+  measuring against those credits a strategy for its universe. The equal-weight
+  fallback exists only for a clone with no benchmark file, and the hub emits a
+  warning when it is in use. The benchmark series is carried on `Dataset`
+  outside the price frames on purpose: a tradeable benchmark is one a strategy
+  can end up holding.
+- **No generated prices.** `lab/` cannot produce a price series; the only
+  generator lives in `tests/synthetic_prices.py` for contract tests. A
+  backtest against a simulated market measures the simulation.
+- **No parameter in the browser.** The GUI must never render a control for a
+  `Param`, display its value, or serve it in JSON. A parameter is a fact about
+  a strategy's file; choosing one is `lab.api`, called from that file. The web
+  layer strips `params` from every description it serves and a test enforces
+  it — if a feature seems to need a parameter on a page, the feature is wrong.
+- **No generated prices reach a result.** The only generator is
+  `tests/synthetic_prices.py`, for contract tests; `lab/` cannot produce a
+  price series and the GUI offers no such dataset.
 - **Rejections are output, not debug noise.** A strategy that declines a trade
   logs why, and the GUI shows it.
 
 ## When porting old code
 
-Five of the six strategies predate the platform. The rule for those:
+Three of the four strategies predate the platform. The rule for those:
 
 1. **Preserve the decision rule.** The original author's intent is the artefact
    worth keeping — including choices that look unsophisticated. Hand-set
@@ -64,7 +100,9 @@ Five of the six strategies predate the platform. The rule for those:
 1. **Adding a strategy touches two files**: the new one, and one import line in
    `lab/strategies/__init__.py`. If a strategy needs a change to the hub, the
    templates, or the JS, that is a framework gap — raise it rather than
-   special-casing.
+   special-casing. Every strategy file ends with an `if __name__ ==
+   "__main__"` block calling `lab.api`, so `python -m lab.strategies.<name>`
+   runs it.
 2. **No magic numbers in strategies.** Anything a user might tune is a `Param`.
    Constants that are part of a definition (the 252 in an annualisation, an
    anchor table transcribed from a source) stay in code, with a comment saying

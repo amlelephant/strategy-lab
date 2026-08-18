@@ -21,14 +21,21 @@ See AGENTS.md for the short version written for automated contributors.
 
 from __future__ import annotations
 
+import inspect
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal, InvalidOperation
 from enum import Enum
+from pathlib import Path
 from typing import Any, ClassVar, Iterable, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
+
+#: strategy-lab/ — three levels up from lab/core/contract.py. Used to report
+#: a strategy's source file as a path relative to the repo, not an absolute
+#: one that only means something on the machine that ran the server.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -185,9 +192,14 @@ class Param:
     """One tunable knob on a strategy.
 
     Declaring parameters instead of hardcoding them buys three things at once:
-    the GUI renders a form with no per-strategy code, `sweep.py` can enumerate
-    a grid without knowing what the strategy does, and a run's parameters are
-    recorded with its result so it can be reproduced.
+    `sweep.py` can enumerate a grid without knowing what the strategy does,
+    `lab.api` can override one by name from the strategy's own file, and a
+    run's parameters are recorded with its result so it can be reproduced.
+
+    Note what is *not* on that list. The GUI does not render a control for a
+    parameter and does not display one — a value here is a fact about this
+    file, and a browser that can change it makes the file stop being the
+    answer to what the strategy does. Choosing a value is a code operation.
     """
 
     name: str
@@ -498,6 +510,24 @@ class Strategy(ABC):
     provenance: ClassVar[str] = ""
     params: ClassVar[tuple[Param, ...]] = ()
 
+    # ── what this strategy is *for* ────────────────────────────────────
+    # A run's data and universe belong to the GUI, not to the file — but the
+    # form has to start somewhere, and starting every strategy on four
+    # consumer names is wrong for most of them. An index-timing rule run on
+    # KO/PEP/XOM/CVX is not a weaker version of the strategy, it is a
+    # different strategy that happens to share the code.
+    #
+    # These are *defaults for a form*, not parameters: nothing reads them
+    # during a run, the hub never sees them, and changing one on the page is
+    # exactly as legitimate as typing a ticker. That is what separates them
+    # from `params`, which the browser must never touch.
+    #: Price file under `data/` this strategy is meant for, e.g.
+    #: `"market_spy.csv"`. Empty means "whatever the form defaults to".
+    default_data: ClassVar[str] = ""
+    #: Universe it is meant for, as the form's own comma-separated text,
+    #: e.g. `"SPY"` or `"KO, PEP, XOM, CVX"`.
+    default_symbols: ClassVar[str] = ""
+
     def __init__(self, **kwargs: Any) -> None:
         declared = {p.name: p for p in self.params}
         unknown = set(kwargs) - set(declared)
@@ -545,6 +575,21 @@ class Strategy(ABC):
 
     # ── introspection (GUI + registry) ─────────────────────────────────
     @classmethod
+    def source_path(cls) -> str:
+        """Where this class is defined, relative to the repo root.
+
+        The GUI's whole reason for existing is to get someone from "I like
+        this strategy" to "here is the file that decides its trades" in one
+        click — so the path is part of the class's public description, not
+        something a template works out with `url_for` guesswork.
+        """
+        try:
+            path = Path(inspect.getfile(cls)).resolve()
+            return str(path.relative_to(_REPO_ROOT)).replace("\\", "/")
+        except (TypeError, OSError, ValueError):
+            return ""
+
+    @classmethod
     def describe(cls) -> dict[str, Any]:
         return {
             "key": cls.key,
@@ -553,6 +598,9 @@ class Strategy(ABC):
             "summary": cls.summary,
             "notes": cls.notes,
             "provenance": cls.provenance,
+            "source_path": cls.source_path(),
+            "default_data": cls.default_data,
+            "default_symbols": cls.default_symbols,
             "params": [p.as_dict() for p in cls.params],
         }
 

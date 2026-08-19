@@ -314,6 +314,9 @@ const Lab = (() => {
   function initStrategy() {
     initTheme();
     const form = $("#run-form");
+    // Absent on a static mirror — no server behind it to run a job against,
+    // so the whole form is replaced with a note instead of rendering here.
+    if (!form) return;
     const runBtn = $("#run-btn");
     const status = $("#run-status");
     /* getAttribute, not `form.dataset.key`. A form exposes its own controls
@@ -356,6 +359,8 @@ const Lab = (() => {
        with "every company with fundamentals" already selected, and the
        symbols box was still sitting there under it looking like it applied. */
     const universeMode = $("#universe-mode");
+    const marketFile = form.getAttribute("data-market-file");
+    const marketSymbol = form.getAttribute("data-market-symbol");
     const syncUniverse = () => {
       $("#symbols-field").hidden = universeMode.value !== "symbols";
 
@@ -389,6 +394,22 @@ const Lab = (() => {
           "the price file pairs alphabetically-adjacent tickers, not related " +
           "ones. Name specific pairs instead, or turn on the cointegration " +
           "screen and expect it to reject nearly everything it is given.";
+      } else if (universeMode.value === "sp500" && marketFile) {
+        /* SPY lives in its own price file, not the one the dataset dropdown
+           is probably sitting on (see resolve_universe in app.py) — force it
+           the same way a fundamentals-only universe forces a fundamentals
+           file, so the run this form is about to submit is the run the
+           notice describes rather than a mismatch caught server-side. */
+        const dataset = $("#dataset");
+        if (dataset && dataset.value !== marketFile
+            && Array.from(dataset.options).some((o) => o.value === marketFile)) {
+          dataset.value = marketFile;
+          dataset.dispatchEvent(new Event("change"));
+        }
+        notice.hidden = false;
+        notice.textContent =
+          `Trades ${marketSymbol} itself against ${marketFile}, preloaded ` +
+          "back to 2005 — nothing to fetch.";
       }
     };
     universeMode.addEventListener("change", syncUniverse);

@@ -45,8 +45,9 @@ from ..core.costs import SCENARIOS, CostModel, FillTiming
 from ..core.hub import Hub, RunConfig
 from ..core.registry import all_strategies, build, get, scaffold
 from ..data.dataset import Dataset
-from ..data.loaders import (DATA_DIR, attach_fundamentals, catalog,
-                            fundamentals_catalog, load_prices)
+from ..data.loaders import (DATA_DIR, MARKET_FILE, MARKET_SYMBOL,
+                            attach_fundamentals, catalog, fundamentals_catalog,
+                            load_prices)
 from . import markdown as md
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -55,6 +56,11 @@ WRITEUPS_DIR = ROOT / "research" / "strategies"
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["JSON_SORT_KEYS"] = False
+# Set by scripts/freeze.py before it crawls the app, never by a live server.
+# Templates read it (as `config.STATIC_BUILD`, injected automatically) to
+# drop controls a static host cannot run: starting a job, polling one,
+# scaffolding a new strategy file.
+app.config["STATIC_BUILD"] = False
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -228,7 +234,19 @@ def resolve_universe(dataset: Dataset, mode: str, raw: str,
     `KeyError: 'none of [...] have prices'`, which reached the browser as a
     failed job with a stack-trace string in it and told nobody anything.
     """
-    if mode == "all":
+    if mode == "sp500":
+        # SPY is deliberately absent from every other price file — it is the
+        # benchmark, not a universe member, so "every symbol in the price
+        # file" never quietly includes it (see `Dataset` docstring). Trading
+        # the index itself means loading it as its own price file instead,
+        # which `data/market_spy.csv` already is: committed, and priced back
+        # to 2005 with nothing to fetch.
+        if MARKET_SYMBOL not in dataset.symbols:
+            raise ValueError(
+                f"the S&P 500 universe trades {MARKET_SYMBOL} itself — pick "
+                f"{MARKET_FILE!r} under Data, not a stock price file")
+        symbols = [MARKET_SYMBOL]
+    elif mode == "all":
         symbols = list(dataset.symbols)[:limit]
     elif mode == "fundamentals":
         symbols = [s for s in dataset.symbols if s in dataset.fundamentals][:limit]
@@ -432,6 +450,8 @@ def strategy_page(key: str):
         others=[s for s in public_strategies() if s["key"] != key],
         datasets=available,
         chosen_dataset=chosen,
+        market_file=MARKET_FILE,
+        market_symbol=MARKET_SYMBOL,
         fundamentals=fundamentals_catalog(),
         scenarios=sorted(SCENARIOS),
         writeup=load_writeup(key),
@@ -478,7 +498,8 @@ def showcase():
         latest[key] = {"sleeve": sleeve, "benchmark": result.get("benchmark"),
                        "run_id": run["id"], "created": run["created"]}
 
-    rows = [{"strategy": s, "featured": latest.get(s["key"])} for s in strategies]
+    rows = [{"strategy": s, "featured": latest.get(s["key"]),
+            "writeup": load_writeup(s["key"])} for s in strategies]
     return render_template("showcase.html", rows=rows)
 
 

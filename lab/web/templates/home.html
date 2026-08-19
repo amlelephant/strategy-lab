@@ -24,6 +24,7 @@
   </div>
 </section>
 
+{% if not config.STATIC_BUILD %}
 <section>
   <div class="section-head">
     <h2 class="headline">New strategy</h2>
@@ -58,6 +59,7 @@
     </form>
   </div>
 </section>
+{% endif %}
 
 <div class="footer-bar">
   <div class="status">{{ strategies|length }} registered ·

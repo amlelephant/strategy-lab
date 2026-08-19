@@ -204,6 +204,10 @@ section + section { margin-top: var(--s8); }
    "the spacing looks off" was. */
 .card + .card { margin-top: var(--s5); }
 .grid > .card + .card { margin-top: 0; }
+/* A card stacked directly above a grid of cards — Universe above Data and
+   Frictions on the strategy form — needs the same gap `.card + .card`
+   gives two stacked cards; `.grid` isn't `.card` so that selector misses it. */
+.card + .grid { margin-top: var(--s5); }
 /* Flex column so the source path pins to the bottom edge: cards in a row are
    the same height, so the paths line up across the grid instead of floating
    at whatever height each summary happened to end at. */
@@ -217,15 +221,17 @@ section + section { margin-top: var(--s8); }
 .grid.two   { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .grid.four  { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-/* Five stat tiles wrap to two rows rather than shrink to unreadable columns. */
+/* Five stat tiles wrap to two rows rather than shrink to unreadable columns.
+   3-then-2 only, never 2-then-2-then-1: a lone tile stranded under an empty
+   trailing column reads as broken, so the narrower breakpoint stacks to one
+   column like every other grid here instead of trying a second uneven split
+   first. */
 .grid.five  { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.grid.split { grid-template-columns: minmax(0, 1fr) 380px; align-items: start; }
 @media (max-width: 1100px) {
   .grid.five { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 900px) {
-  .grid.two, .grid.three, .grid.four, .grid.split { grid-template-columns: 1fr; }
-  .grid.five { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid.two, .grid.three, .grid.four, .grid.five { grid-template-columns: 1fr; }
 }
 
 /* ── stat tile ──────────────────────────────────────────────────────── */
@@ -512,6 +518,25 @@ table.data td.name, table.data th.name { white-space: nowrap; font-weight: 600; 
 .show-foot p { margin: 0 0 var(--s3); }
 .show-empty { padding: var(--s6); }
 .show-empty p { margin: 0; }
+
+/* Collapsed by default: a full write-up per card, expanded, would make every
+   row's height match its longest neighbour's essay rather than its own
+   result. `<details>` keeps the grid even and still puts the file itself on
+   the page, one click away, rather than only linking off it. */
+.show-research { border-top: 1px solid var(--border); padding: 0 var(--s6) var(--s6); }
+.show-research summary {
+  list-style: none; cursor: pointer; padding: var(--s5) 0;
+  display: flex; align-items: center; gap: var(--s3);
+  font-size: 13px; font-weight: 500; color: var(--text-secondary);
+}
+.show-research summary::-webkit-details-marker { display: none; }
+.show-research summary::before {
+  content: "▸"; color: var(--text-tertiary); font-size: 11px;
+  transition: transform var(--fast) var(--ease);
+}
+.show-research[open] summary::before { transform: rotate(90deg); }
+.show-research summary:hover { color: var(--text-primary); }
+.show-research .prose.md { padding-bottom: var(--s3); }
 
 .prose { max-width: 68ch; color: var(--text-secondary); font-size: 15px;
          line-height: 1.6; }

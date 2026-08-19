@@ -9,6 +9,7 @@ run.py — the command line for strategy-lab.
     python run.py fetch AAPL MSFT --start 2020-01-01 --end 2024-12-31
     python run.py fetch-market                       refresh the S&P 500 benchmark
     python run.py scan-pairs --all-with-fundamentals --min-price 5 --out pairs.txt
+    python run.py freeze --out dist                   static mirror of the read-only pages
 
 Everything the GUI can do is available here, because a research tool you
 cannot call from a script is a research tool you cannot automate. The reverse
@@ -304,6 +305,11 @@ def cmd_serve(args) -> None:
     main(host=args.host, port=args.port, debug=args.debug)
 
 
+def cmd_freeze(args) -> None:
+    from lab.web.freeze import freeze
+    freeze(Path(args.out))
+
+
 
 # ── entry point ───────────────────────────────────────────────────────────
 
@@ -405,6 +411,11 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--debug", action="store_true")
     serve.set_defaults(func=cmd_serve)
 
+    freeze = sub.add_parser(
+        "freeze", help="render the read-only pages to static HTML/JSON")
+    freeze.add_argument("--out", default="dist",
+                        help="output directory (default: dist/)")
+    freeze.set_defaults(func=cmd_freeze)
 
     return parser
 

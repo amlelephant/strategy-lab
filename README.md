@@ -51,8 +51,8 @@ python run.py backtest stat_arb_ev -p require_cointegration=True \
 python -m pytest tests/ -q
 ```
 
-![A strategy's page — the path to its class file, then the data and frictions
-to run it against](docs/images/console.jpg)
+<img width="1870" height="2834" alt="image" src="https://github.com/user-attachments/assets/74ef9824-172d-4f02-ba43-812ad652e240" />
+
 
 ---
 

@@ -23,8 +23,8 @@ name its own fill price, cannot spend money it does not have, and cannot see a
 value from after the bar it is standing on. This solves a large issue I was
 personally facing while trying to develop trading algorithims.
 
-![Result page — a strategy against its benchmark, headlined by annualised
-alpha and its t-statistic](docs/images/result-page.jpg)
+<img width="1870" height="1430" alt="image" src="https://github.com/user-attachments/assets/6c95ff20-52c7-40ea-bda5-987c76a28365" />
+
 
 ---
 

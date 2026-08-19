@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Statistical Arbitrage — strategy-lab</title>
+<link rel="stylesheet" href="/strategy-lab/static/lab.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%236E8BFF'/><path d='M8 22 L14 12 L18 18 L24 9' stroke='%2315171C' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+</head>
+<body>
+
+<header class="bar">
+  <a class="brand" href="/strategy-lab/">
+    <span>strategy<span class="mark">-lab</span></span>
+    <span class="caption tertiary">backtesting platform</span>
+  </a>
+  <nav>
+    <a href="/strategy-lab/" class="on">Strategies</a>
+    <a href="/strategy-lab/showcase" >Showcase</a>
+    <a href="#" id="theme-toggle" title="Switch theme">Theme</a>
+  </nav>
+</header>
+
+<main>
+  
+<div class="page-head">
+  <div style="display:flex; align-items:center; gap:var(--s4); margin-bottom:var(--s3)">
+    <span class="badge">pair</span>
+    <span class="badge">ported</span>
+  </div>
+  <h1 class="title">Statistical Arbitrage</h1>
+  <p>Pairs trading that screens for a real cointegrating relationship and will not enter unless expected capture clears costs, latency and hold-period risk.</p>
+</div>
+
+
+<div class="notice" style="margin-bottom:var(--s7)">
+  <div>This is a static version of strategy-lab — the form below is shown as
+    a record of how each run was configured, not a live control. Run it
+    yourself at
+    <a href="https://github.com/amlelephant/strategy-lab">github.com/amlelephant/strategy-lab</a>.</div>
+</div>
+
+
+<!-- ── where the code is ────────────────────────────────────────────── -->
+<section style="margin-top:0">
+  <div class="card">
+    <div class="card-title">The code</div>
+    <div class="path-row">
+      <code class="mono" id="source-path">lab/strategies/stat_arb_ev.py</code>
+      <button type="button" class="btn-quiet" id="copy-path"
+              data-path="lab/strategies/stat_arb_ev.py">Copy</button>
+    </div>
+    <p class="caption tertiary" style="margin:var(--s5) 0 0">
+      <a href="/strategy-lab/docs">Running it from the code →</a>
+    </p>
+  </div>
+</section>
+
+<!-- ── the backtest ───────────────────────────────────────────────────
+     The <form> lives *inside* the section, not around it: wrapping the
+     section broke the `section + section` adjacency that spaces these
+     apart, so this heading sat flush against the card above it. The run
+     button in the footer bar reaches the form by its `form=` attribute,
+     so nothing needs the form to be an ancestor.
+
+     On a static build the fields stay on the page — disabled, via one
+     `<fieldset>` rather than an attribute repeated on every control — so a
+     visitor still sees what a run is configured with. Nothing in `lab.js`
+     wires them up in that case; see the `#run-btn` guard in initStrategy(). -->
+<section>
+  <div class="section-head">
+    <h2 class="headline">Backtest</h2>
+  </div>
+
+  <form id="run-form" data-key="stat_arb_ev" data-universe="pair"
+        data-market-file="market_spy.csv" data-market-symbol="SPY">
+  <fieldset class="run-fields" disabled>
+  <div class="card">
+    <div class="card-title">Universe</div>
+    <div class="fields">
+      <label class="field">
+        <span>Selection</span>
+        <select name="universe_mode" id="universe-mode">
+          <option value="symbols" selected>Named symbols</option>
+          <option value="fundamentals" >Every company with fundamentals</option>
+          <option value="all">Every symbol in the price file</option>
+          <option value="sp500">The S&amp;P 500 itself (SPY)</option>
+        </select>
+        
+        <span class="hint">Consumed two at a time</span>
+        
+        <span class="hint" id="universe-notice" hidden></span>
+      </label>
+
+      <label class="field" id="symbols-field">
+        <span>Symbols</span>
+        <textarea name="symbols" placeholder="KO, PEP, XOM, CVX">KO, PEP, XOM, CVX, MCD, YUM, CL, PG</textarea>
+      </label>
+
+      <div class="fields two">
+        <label class="field"><span>Start</span>
+          <input type="date" name="start"></label>
+        <label class="field"><span>End</span>
+          <input type="date" name="end"></label>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <p class="caption tertiary" style="margin:0">
+      Survivorship-biased — delisted tickers are absent. Read results as an
+      upper bound.
+    </p>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <div class="card-title">Data</div>
+      <div class="fields">
+        <label class="field">
+          <span>Prices</span>
+          <select name="dataset" id="dataset">
+            
+            <option value="market_spy.csv" >market spy · 0.5 MB</option>
+            
+            <option value="prices.pkl" selected>prices · 16.8 MB</option>
+            
+          </select>
+        </label>
+        <label class="field">
+          <span>Fundamentals</span>
+          <select name="fundamentals">
+            <option value="">none</option>
+            
+            <option value="fundamentals_simfin.json" >fundamentals simfin · 11.0 MB</option>
+            
+          </select>
+          <span class="hint">Indexed by filing date</span>
+        </label>
+        <div class="caption tertiary" id="dataset-info">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Frictions</div>
+      <div class="fields">
+        <label class="field">
+          <span>Scenario</span>
+          <select name="scenario" id="scenario">
+            
+            <option value="conservative" >conservative</option>
+            
+            <option value="frictionless" >frictionless</option>
+            
+            <option value="optimistic" >optimistic</option>
+            
+            <option value="realistic" selected>realistic</option>
+            
+          </select>
+        </label>
+        <div class="fields two">
+          <label class="field"><span>Commission bps</span>
+            <input type="number" name="commission_bps" value="1.0" step="0.5" min="0"></label>
+          <label class="field"><span>Slippage bps</span>
+            <input type="number" name="slippage_bps" value="2.0" step="0.5" min="0"></label>
+        </div>
+        <label class="field">
+          <span>Fill timing</span>
+          <select name="timing">
+            <option value="next_open">Next bar's open</option>
+            <option value="close">Signal bar's close</option>
+          </select>
+          <span class="hint">Signal-bar close flatters — comparison only</span>
+        </label>
+        <div class="fields two">
+          
+          <label class="field"><span>Starting cash</span>
+            <input type="number" name="starting_cash" value="100000" step="1000" min="1000"></label>
+          <label class="field"><span>Seed</span>
+            <input type="number" name="seed" value="7" step="1"></label>
+        </div>
+      </div>
+    </div>
+  </div>
+  </fieldset>
+  </form>
+</section>
+
+
+
+
+<section>
+  <div class="section-head">
+    <h2 class="headline">Research</h2>
+    <code class="mono caption tertiary">research/strategies/stat_arb_ev.md</code>
+  </div>
+  <div class="card">
+    <div class="prose md"><h2>The claim</h2>
+<p>Same signal as <code>stat_arb</code> — same hedge ratio, same z-score — but it won't enter unless the arithmetic works. The thesis, stated once so the four gates make sense: a retail account cannot compete with anyone on sub-day timescales, so the only spreads worth trading are those that revert slowly enough that execution latency doesn't matter, <em>and</em> whose expected capture is large relative to both the cost of trading and the volatility of holding through the reversion.</p>
+<h2>The four gates</h2>
+<p>Each rejects for a different reason, and each rejection is written to the run log — so "how many trades did the half-life gate refuse" is a question with an answer, not an assumption.</p>
+<ol><li><strong>Half-life.</strong> Too fast (below <code>min_half_life</code>) is somebody else's game — the domain of participants with better fills and lower latency than a backtest can claim for a retail account. Too slow (above <code>max_half_life</code>) ties up capital in a position that may not revert this quarter. This gate does most of the work.</li><li><strong>Breakeven z.</strong> The minimum |z| at which expected capture covers commission and slippage <em>at this position size</em>, derived from the run's own cost model — never a hardcoded number, so changing the cost scenario in the console changes what this gate rejects.</li><li><strong>Reward/risk.</strong> Net expected value against one standard deviation of hold-period spread movement. A positive EV that's 3% of the noise around it isn't a trade, it's a coin flip with a small tilt.</li><li><strong>Minimum EV.</strong> An absolute dollar floor, so tiny positions where fees dominate never get taken.</li></ol>
+<p>An earlier version of this filter gated on <code>net_ev &gt; $10</code> and <code>sharpe_contribution &gt; 0.5</code>, and rejected nothing in any backtest run against it — a $12k position at z = 2.2 clears a $10 floor trivially. A filter that never fires is worse than no filter, because it looks like risk management without doing any.</p>
+<h2>What it does to the trade count</h2>
+<p>Four names (KO/PEP, XOM/CVX), same period, same costs as the unfiltered version:</p>
+<div class="table-wrap"><table class="data prose-table"><thead><tr><th></th><th>Return</th><th>Sharpe</th><th>t</th><th>Max DD</th><th>Trades</th></tr></thead><tbody><tr><td>Statistical Arbitrage (z-score)</td><td>−27.84%</td><td>−0.98</td><td>−2.1</td><td>−29.98%</td><td>96</td></tr><tr><td><strong>Statistical Arbitrage (EV-filtered)</strong></td><td><strong>−24.16%</strong></td><td><strong>−0.92</strong></td><td>−1.9</td><td><strong>−26.37%</strong></td><td><strong>92</strong></td></tr><tr><td>Buy and Hold</td><td>+88.20%</td><td>0.88</td><td>1.9</td><td>−14.37%</td><td>4</td></tr></tbody></table></div>
+<p>The filter rejected 25 of 71 signals — 15 of them on a half-life under two days, the regime where execution quality decides the outcome and this isn't the strategy deciding it. It improved the result. <strong>Both versions still lose</strong>, and lose to holding the same names. Run this beside <code>stat_arb</code> on the same universe; the interesting output isn't which one earns more, it's the rejection log, which says how many of the baseline's trades were never worth taking and which gate caught them.</p>
+<h2>Where the half-life estimate changed</h2>
+<p>The original filter's half-life came from a Kalman-filtered partial- cointegration model, running through a compiled C++ engine (<code>stat-arb-v2/core/stat_engine.cpp</code>) via <code>ctypes</code>. The port replaces it with a direct Ornstein-Uhlenbeck fit in NumPy — regress Δspread on lagged spread, <code>half_life = −ln2 / ln(1 + b)</code>. The two agree closely on well-behaved spreads and diverge on spreads with a large random-walk component, where the Kalman version is the better estimate. <strong>This is a real capability loss</strong>, accepted for portability — no build step, no compiled dependency — and it's the one change in this codebase made for that reason rather than for correctness. See <a href="../ported-changes.md"><code>research/ported-changes.md</code></a>.</p>
+<h2>What this doesn't establish</h2>
+<p>A filter that rejects the worst of a losing strategy's trades and still loses is doing its job, not failing at it — the honest reading is that the fast end of daily-bar pairs trading on liquid names belongs to participants this backtest cannot represent, which is exactly what the filter's thesis predicted before any of this was run. That prediction being consistent with the result is not the same as the result being large; both Sharpe ratios sit</p>
+<p>below |t| = 2.</p></div>
+  </div>
+</section>
+
+
+
+<section>
+  <div class="section-head">
+    <h2 class="headline">Previous runs</h2>
+  </div>
+  <div class="card flush">
+    <table class="data"><tbody>
+      
+      <tr>
+        <td class="name"><a href="/strategy-lab/run/da713ab392d0">Statistical Arbitrage</a></td>
+        <td class="secondary caption">2026-08-18T17:16:01+00:00</td>
+      </tr>
+      
+      <tr>
+        <td class="name"><a href="/strategy-lab/run/cec133561680">Statistical Arbitrage</a></td>
+        <td class="secondary caption">2026-08-18T15:27:47+00:00</td>
+      </tr>
+      
+      <tr>
+        <td class="name"><a href="/strategy-lab/run/9fdc0840e72a">Statistical Arbitrage (EV-filtered)</a></td>
+        <td class="secondary caption">2026-08-17T19:56:39+00:00</td>
+      </tr>
+      
+    </tbody></table>
+  </div>
+</section>
+
+
+
+<div class="footer-bar">
+  <div class="status">
+    Showing the most recently cached run.
+    
+  </div>
+  
+  <a class="btn-primary" href="/strategy-lab/run/da713ab392d0">Run backtest</a>
+  
+</div>
+
+
+</main>
+
+<script>window.LAB_API_ROOT = "/strategy-lab";</script>
+<script src="/strategy-lab/static/lab.js"></script>
+
+<script>Lab.strategy();</script>
+
+</body>
+</html>

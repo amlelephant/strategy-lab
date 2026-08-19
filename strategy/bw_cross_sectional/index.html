@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BW Valuation — strategy-lab</title>
+<link rel="stylesheet" href="/strategy-lab/static/lab.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%236E8BFF'/><path d='M8 22 L14 12 L18 18 L24 9' stroke='%2315171C' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+</head>
+<body>
+
+<header class="bar">
+  <a class="brand" href="/strategy-lab/">
+    <span>strategy<span class="mark">-lab</span></span>
+    <span class="caption tertiary">backtesting platform</span>
+  </a>
+  <nav>
+    <a href="/strategy-lab/" class="on">Strategies</a>
+    <a href="/strategy-lab/showcase" >Showcase</a>
+    <a href="#" id="theme-toggle" title="Switch theme">Theme</a>
+  </nav>
+</header>
+
+<main>
+  
+<div class="page-head">
+  <div style="display:flex; align-items:center; gap:var(--s4); margin-bottom:var(--s3)">
+    <span class="badge">cross</span>
+    <span class="badge">ported</span>
+  </div>
+  <h1 class="title">BW Valuation</h1>
+  <p>Rank the universe on quality, valuation and leverage within each quarter&#39;s own cross-section.</p>
+</div>
+
+
+<div class="notice" style="margin-bottom:var(--s7)">
+  <div>This is a static version of strategy-lab — the form below is shown as
+    a record of how each run was configured, not a live control. Run it
+    yourself at
+    <a href="https://github.com/amlelephant/strategy-lab">github.com/amlelephant/strategy-lab</a>.</div>
+</div>
+
+
+<!-- ── where the code is ────────────────────────────────────────────── -->
+<section style="margin-top:0">
+  <div class="card">
+    <div class="card-title">The code</div>
+    <div class="path-row">
+      <code class="mono" id="source-path">lab/strategies/bw_cross_sectional.py</code>
+      <button type="button" class="btn-quiet" id="copy-path"
+              data-path="lab/strategies/bw_cross_sectional.py">Copy</button>
+    </div>
+    <p class="caption tertiary" style="margin:var(--s5) 0 0">
+      <a href="/strategy-lab/docs">Running it from the code →</a>
+    </p>
+  </div>
+</section>
+
+<!-- ── the backtest ───────────────────────────────────────────────────
+     The <form> lives *inside* the section, not around it: wrapping the
+     section broke the `section + section` adjacency that spaces these
+     apart, so this heading sat flush against the card above it. The run
+     button in the footer bar reaches the form by its `form=` attribute,
+     so nothing needs the form to be an ancestor.
+
+     On a static build the fields stay on the page — disabled, via one
+     `<fieldset>` rather than an attribute repeated on every control — so a
+     visitor still sees what a run is configured with. Nothing in `lab.js`
+     wires them up in that case; see the `#run-btn` guard in initStrategy(). -->
+<section>
+  <div class="section-head">
+    <h2 class="headline">Backtest</h2>
+  </div>
+
+  <form id="run-form" data-key="bw_cross_sectional" data-universe="cross"
+        data-market-file="market_spy.csv" data-market-symbol="SPY">
+  <fieldset class="run-fields" disabled>
+  <div class="card">
+    <div class="card-title">Universe</div>
+    <div class="fields">
+      <label class="field">
+        <span>Selection</span>
+        <select name="universe_mode" id="universe-mode">
+          <option value="symbols" >Named symbols</option>
+          <option value="fundamentals" selected>Every company with fundamentals</option>
+          <option value="all">Every symbol in the price file</option>
+          <option value="sp500">The S&amp;P 500 itself (SPY)</option>
+        </select>
+        
+        <span class="hint">Ranks against peers — needs fundamentals</span>
+        
+        <span class="hint" id="universe-notice" hidden></span>
+      </label>
+
+      <label class="field" id="symbols-field">
+        <span>Symbols</span>
+        <textarea name="symbols" placeholder="KO, PEP, XOM, CVX">KO, PEP, XOM, CVX</textarea>
+      </label>
+
+      <div class="fields two">
+        <label class="field"><span>Start</span>
+          <input type="date" name="start"></label>
+        <label class="field"><span>End</span>
+          <input type="date" name="end"></label>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <p class="caption tertiary" style="margin:0">
+      Survivorship-biased — delisted tickers are absent. Read results as an
+      upper bound.
+    </p>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <div class="card-title">Data</div>
+      <div class="fields">
+        <label class="field">
+          <span>Prices</span>
+          <select name="dataset" id="dataset">
+            
+            <option value="market_spy.csv" >market spy · 0.5 MB</option>
+            
+            <option value="prices.pkl" selected>prices · 16.8 MB</option>
+            
+          </select>
+        </label>
+        <label class="field">
+          <span>Fundamentals</span>
+          <select name="fundamentals">
+            <option value="">none</option>
+            
+            <option value="fundamentals_simfin.json" selected>fundamentals simfin · 11.0 MB</option>
+            
+          </select>
+          <span class="hint">Indexed by filing date</span>
+        </label>
+        <div class="caption tertiary" id="dataset-info">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Frictions</div>
+      <div class="fields">
+        <label class="field">
+          <span>Scenario</span>
+          <select name="scenario" id="scenario">
+            
+            <option value="conservative" >conservative</option>
+            
+            <option value="frictionless" >frictionless</option>
+            
+            <option value="optimistic" >optimistic</option>
+            
+            <option value="realistic" selected>realistic</option>
+            
+          </select>
+        </label>
+        <div class="fields two">
+          <label class="field"><span>Commission bps</span>
+            <input type="number" name="commission_bps" value="1.0" step="0.5" min="0"></label>
+          <label class="field"><span>Slippage bps</span>
+            <input type="number" name="slippage_bps" value="2.0" step="0.5" min="0"></label>
+        </div>
+        <label class="field">
+          <span>Fill timing</span>
+          <select name="timing">
+            <option value="next_open">Next bar's open</option>
+            <option value="close">Signal bar's close</option>
+          </select>
+          <span class="hint">Signal-bar close flatters — comparison only</span>
+        </label>
+        <div class="fields two">
+          
+          <label class="field"><span>Starting cash</span>
+            <input type="number" name="starting_cash" value="100000" step="1000" min="1000"></label>
+          <label class="field"><span>Seed</span>
+            <input type="number" name="seed" value="7" step="1"></label>
+        </div>
+      </div>
+    </div>
+  </div>
+  </fieldset>
+  </form>
+</section>
+
+
+
+
+<section>
+  <div class="section-head">
+    <h2 class="headline">Research</h2>
+    <code class="mono caption tertiary">research/strategies/bw_cross_sectional.md</code>
+  </div>
+  <div class="card">
+    <div class="prose md"><h2>The claim</h2>
+<p>Score every company on quality, valuation and leverage against the current peer group. Each company is scored on these different methods:</p>
+<ul><li><strong>percentile</strong> - fraction of peers this company beats. Rank-based, so one absurd P/E can't move anybody else's score.</li><li><strong>zscore</strong> - median-centred, standard-deviation-scaled. Keeps the size of a gap, not just its order, and inherits every outlier along with it.</li><li><strong>minmax</strong> - linear between the best and worst peer in the cross-section. Two extreme companies decide everybody's score. Kept specifically so that claim is demonstrable rather than folklore. Set <code>method="minmax"</code> and watch one outlier move the whole ranking.</li></ul>
+<p>Weights are the original's: 45% quality, 45% valuation, 10% risk.</p>
+<h2>Methods</h2>
+<p>Valuation of a company is the foundational strategy in traditional hedge funds. One of the greatest men to do this was Warren Buffet, whose methods inspired the creation of this algorithim.</p>
+<h3>Quality</h3>
+<p>A companies quality is how good it is at producing capital flow. A company that is valued cheaply could be a completely horrid company in producing cashflow which is why this is absolutely nescessary in determining if a company can convert a cheap stock price into a market beating return on stock price.</p>
+<ul><li><strong>Operating Margin</strong> - Tells us what fraction of every sales dollar the buisness keeps after running itself, before interest and taxes. We look for it to be both high and stable which demonstrates pricing power and cost discipline. </li><li><strong>FCF Margin</strong> - What fraction of sales actually turns into spendable cash after capex. This acts as a check on operating margin in order to make sure the healthy operating margin is substantiated by liquid assets. </li><li><strong>ROIC</strong> - How efficient a company is at turning capex into profit. If a company is able to have a high return on invested capital then their upside growth can likely be unleashed with an increase in investment. </li><li><strong>Revenue Growth</strong> - Is the buisness actually getting bigger. This is very important to put into the context of ROIC of course, but it still will help rule out the lower end of companies that show good margins yet still manage to have a decreasing revenue.</li></ul>
+<h3>Valuation</h3>
+<p>This is how good of a deal we are actually getting on the buisness. Tech companies look amazing on paper because of their insanely high operating margins, but with the context of valuation we are able determine if we actually get a worth while deal on the company.</p>
+<ul><li><strong>FCF Yeild</strong> - How much cash the buisness throws off per dollar you're paying for it. A high yeild would indicate that it is producing a lot of spendable cash that it is able to share with the investors. Basically how much you will be rewarded for investing. </li><li><strong>EV/EBITDA</strong> - Allows you to compare the actual value of a company with debt on an equal footing. This is beneficial over P/E, yet P/E is still nescessary.</li><li><strong>P/E</strong> - Price per dollar of net income. One of the most used multiples that allows us to assess how a companies stock price compares to it's earnings. Needs to be industry neutralized. </li></ul>
+<h3>Risk</h3>
+<p>A company can look great on paper but if it is drowning in debt you will only ever get the total value of the compaies assets.</p>
+<ul><li><strong>Net Debt/EBITDA</strong> - How many years of current cash earnings it would take to pay off the companie's net debt. High debt is incredably risky in an industry that is exposed to frequent swings. Even if a company is incredably profitable, if it is drowning in debt they likely won't be able to make it through hard times. </li></ul>
+<h2>Future Improvements</h2>
+<p>I believe a significant weakness of this model lies in valuation. I believe we do a great job of finding good companies but I think that there should be an inclusion of somethign more technical for price breakdown such as DCF valuation. Valuation is just as important as quality since a good company with a high valuation could grow very slow.</p></div>
+  </div>
+</section>
+
+
+
+<section>
+  <div class="section-head">
+    <h2 class="headline">Previous runs</h2>
+  </div>
+  <div class="card flush">
+    <table class="data"><tbody>
+      
+      <tr>
+        <td class="name"><a href="/strategy-lab/run/151e44321cda">BW Valuation (cross-sectional)</a></td>
+        <td class="secondary caption">2026-08-17T19:56:59+00:00</td>
+      </tr>
+      
+    </tbody></table>
+  </div>
+</section>
+
+
+
+<div class="footer-bar">
+  <div class="status">
+    Showing the most recently cached run.
+    
+  </div>
+  
+  <a class="btn-primary" href="/strategy-lab/run/151e44321cda">Run backtest</a>
+  
+</div>
+
+
+</main>
+
+<script>window.LAB_API_ROOT = "/strategy-lab";</script>
+<script src="/strategy-lab/static/lab.js"></script>
+
+<script>Lab.strategy();</script>
+
+</body>
+</html>

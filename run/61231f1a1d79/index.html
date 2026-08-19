@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Run 61231f1a1d79 — strategy-lab</title>
+<link rel="stylesheet" href="/strategy-lab/static/lab.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%236E8BFF'/><path d='M8 22 L14 12 L18 18 L24 9' stroke='%2315171C' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+</head>
+<body>
+
+<header class="bar">
+  <a class="brand" href="/strategy-lab/">
+    <span>strategy<span class="mark">-lab</span></span>
+    <span class="caption tertiary">backtesting platform</span>
+  </a>
+  <nav>
+    <a href="/strategy-lab/" >Strategies</a>
+    <a href="/strategy-lab/showcase" >Showcase</a>
+    <a href="#" id="theme-toggle" title="Switch theme">Theme</a>
+  </nav>
+</header>
+
+<main>
+  
+<div class="page-head">
+  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--s5); flex-wrap:wrap">
+    <div>
+      <h1 class="title" id="run-label">Bollinger Mean Reversion</h1>
+      <p id="run-subtitle" class="caption tertiary">2026-08-17T19:56:30+00:00</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── while it runs ────────────────────────────────────────────────── -->
+<section id="running">
+  <div class="card">
+    <div class="overline" style="margin-bottom: var(--s4)">Running</div>
+    <div class="progress"><i id="progress-bar"></i></div>
+    <div class="caption secondary" id="progress-stage" style="margin-top: var(--s4)">queued</div>
+  </div>
+</section>
+
+<!-- ── failure ──────────────────────────────────────────────────────── -->
+<section id="failed" hidden>
+  <div class="notice bad">
+    <div><strong>The run failed.</strong>
+      <div class="mono" id="error-text" style="margin-top: var(--s3)"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── result ───────────────────────────────────────────────────────── -->
+<div id="result" hidden>
+
+  <div id="warnings"></div>
+
+  
+  <section style="margin-top:0">
+    <div class="card">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--s7); flex-wrap:wrap">
+        <div>
+          <div class="overline" id="hero-label">Vs the benchmark, annualised</div>
+          <div class="hero" id="hero-active">—</div>
+          <div class="callout secondary" id="hero-verdict" style="margin-top: var(--s3)"></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="grid five">
+        <div class="stat"><span class="overline">Total return</span>
+          <span class="value" id="stat-return">—</span>
+          <span class="sub" id="stat-return-sub"></span></div>
+        <div class="stat"><span class="overline">Alpha · risk-adjusted</span>
+          <span class="value" id="stat-alpha">—</span>
+          <span class="sub" id="stat-alpha-sub"></span></div>
+        <div class="stat"><span class="overline">Beta</span>
+          <span class="value" id="stat-beta">—</span>
+          <span class="sub" id="stat-beta-sub"></span></div>
+        <div class="stat"><span class="overline">Sharpe</span>
+          <span class="value" id="stat-sharpe">—</span>
+          <span class="sub" id="stat-sharpe-sub"></span></div>
+        <div class="stat"><span class="overline">Max drawdown</span>
+          <span class="value" id="stat-dd">—</span>
+          <span class="sub" id="stat-dd-sub"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- equity -->
+  <section>
+    <div class="section-head">
+      <h2 class="headline">Equity</h2>
+      <div style="display:flex; align-items:center; gap:var(--s5); flex-wrap:wrap">
+        <div class="readout" id="chart-readout"></div>
+        
+        <select id="compare-with" class="compact" aria-label="Compare against">
+          <option value="market" selected>vs the S&amp;P 500</option>
+          <option value="universe">vs underlying assets</option>
+          
+          <option value="run:22b6718c194d">vs Bollinger Mean Reversion</option>
+          
+          <option value="run:63caa8cb8b7f">vs 100 Day Moving Average</option>
+          
+          <option value="run:da713ab392d0">vs Statistical Arbitrage</option>
+          
+          <option value="run:151e44321cda">vs BW Valuation</option>
+          
+        </select>
+      </div>
+    </div>
+    <div class="card">
+      <svg class="chart" id="equity-chart" height="300"
+           preserveAspectRatio="none" role="img"
+           aria-label="Equity curve against the S&amp;P 500 benchmark"></svg>
+      <div class="legend" id="equity-legend"></div>
+    </div>
+  </section>
+
+  <!-- drawdown -->
+  <section>
+    <div class="section-head"><h2 class="headline">Drawdown</h2></div>
+    <div class="card">
+      <svg class="chart" id="dd-chart" height="160" preserveAspectRatio="none"
+           role="img" aria-label="Drawdown from the running peak"></svg>
+    </div>
+  </section>
+
+  <!-- comparison -->
+  <section>
+    <div class="section-head">
+      <h2 class="headline">Summary</h2>
+      <span class="caption tertiary">The strategy, and what it is measured against</span>
+    </div>
+    <div class="card flush">
+      <div class="table-wrap">
+        <table class="data" id="compare-table">
+          <thead><tr>
+            <th class="name">Strategy</th><th>Alpha</th><th>t</th><th>Beta</th>
+            <th>Return</th><th>CAGR</th><th>Sharpe</th><th>Max DD</th>
+            <th>Trades</th><th>Hit rate</th><th>Costs</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- trades -->
+  <section>
+    <div class="section-head">
+      <h2 class="headline">Trade log</h2>
+      <span class="caption tertiary" id="trade-count"></span>
+    </div>
+    <div class="card flush">
+      <div class="table-wrap scroll-y">
+        <table class="data" id="trade-table">
+          <thead><tr>
+            <th>When</th><th class="name">Symbol</th><th>Action</th><th>Side</th>
+            <th>Qty</th><th>Price</th><th>P&amp;L</th><th class="wrap">Reason</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div style="display:flex; justify-content:center; padding:var(--s5)"
+           id="trade-more-box" hidden>
+        <button type="button" class="btn-secondary" id="trade-more-btn"></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- decisions not taken -->
+  <section>
+    <div class="section-head">
+      <h2 class="headline">Decisions and rejections</h2>
+      <span class="caption tertiary">Declined trades, and why</span>
+    </div>
+    <div class="card">
+      <div class="log scroll-y" id="decision-log">
+        <div class="empty">Nothing logged.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- how it was run -->
+  <section>
+    <div class="section-head"><h2 class="headline">Run configuration</h2></div>
+    <div class="card">
+      <div class="grid two">
+        <div><div class="overline" style="margin-bottom:var(--s4)">Data</div>
+          <div class="log" id="config-data"></div></div>
+        <div><div class="overline" style="margin-bottom:var(--s4)">Frictions</div>
+          <div class="log" id="config-costs"></div></div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+</main>
+
+<script>window.LAB_API_ROOT = "/strategy-lab";</script>
+<script src="/strategy-lab/static/lab.js"></script>
+
+<script>Lab.result("61231f1a1d79");</script>
+
+</body>
+</html>

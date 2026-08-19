@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>strategy-lab</title>
+<link rel="stylesheet" href="/strategy-lab/static/lab.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%236E8BFF'/><path d='M8 22 L14 12 L18 18 L24 9' stroke='%2315171C' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+</head>
+<body>
+
+<header class="bar">
+  <a class="brand" href="/strategy-lab/">
+    <span>strategy<span class="mark">-lab</span></span>
+    <span class="caption tertiary">backtesting platform</span>
+  </a>
+  <nav>
+    <a href="/strategy-lab/" class="on">Strategies</a>
+    <a href="/strategy-lab/showcase" >Showcase</a>
+    <a href="#" id="theme-toggle" title="Switch theme">Theme</a>
+  </nav>
+</header>
+
+<main>
+  
+<div class="page-head">
+  <h1 class="title">Strategies</h1>
+  <p>Everything registered in this repository.</p>
+</div>
+
+<section style="margin-top:0">
+  <div class="grid two">
+    
+    <a class="card link" href="/strategy-lab/strategy/bw_cross_sectional">
+      <div style="display:flex; align-items:center; gap:var(--s3); margin-bottom:var(--s3)">
+        <span class="body-strong">BW Valuation</span>
+        <span class="badge">ported</span>
+      </div>
+      <p class="callout secondary">Rank the universe on quality, valuation and leverage within each quarter&#39;s own cross-section.</p>
+      
+      <div class="mono caption tertiary">lab/strategies/bw_cross_sectional.py</div>
+      
+    </a>
+    
+    <a class="card link" href="/strategy-lab/strategy/hundred_day_mov_avg">
+      <div style="display:flex; align-items:center; gap:var(--s3); margin-bottom:var(--s3)">
+        <span class="body-strong">100 Day Moving Average</span>
+        
+      </div>
+      <p class="callout secondary">Buy when the index closes above its 100-day moving average and sell when it closes below.</p>
+      
+      <div class="mono caption tertiary">lab/strategies/hundred_day_mov_avg.py</div>
+      
+    </a>
+    
+    <a class="card link" href="/strategy-lab/strategy/mean_reversion">
+      <div style="display:flex; align-items:center; gap:var(--s3); margin-bottom:var(--s3)">
+        <span class="body-strong">Bollinger Mean Reversion</span>
+        <span class="badge">ported</span>
+      </div>
+      <p class="callout secondary">Fade moves outside a Bollinger band and take profit back at the moving average.</p>
+      
+      <div class="mono caption tertiary">lab/strategies/mean_reversion.py</div>
+      
+    </a>
+    
+    <a class="card link" href="/strategy-lab/strategy/stat_arb_ev">
+      <div style="display:flex; align-items:center; gap:var(--s3); margin-bottom:var(--s3)">
+        <span class="body-strong">Statistical Arbitrage</span>
+        <span class="badge">ported</span>
+      </div>
+      <p class="callout secondary">Pairs trading that screens for a real cointegrating relationship and will not enter unless expected capture clears costs, latency and hold-period risk.</p>
+      
+      <div class="mono caption tertiary">lab/strategies/stat_arb_ev.py</div>
+      
+    </a>
+    
+  </div>
+</section>
+
+
+
+<div class="footer-bar">
+  <div class="status">4 registered ·
+    <code class="mono">lab/strategies/</code></div>
+  <a class="btn-primary" href="/strategy-lab/showcase">See the showcase</a>
+</div>
+
+</main>
+
+<script>window.LAB_API_ROOT = "/strategy-lab";</script>
+<script src="/strategy-lab/static/lab.js"></script>
+
+<script>Lab.home();</script>
+
+</body>
+</html>

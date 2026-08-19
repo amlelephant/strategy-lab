@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bollinger Mean Reversion — strategy-lab</title>
+<link rel="stylesheet" href="/strategy-lab/static/lab.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%236E8BFF'/><path d='M8 22 L14 12 L18 18 L24 9' stroke='%2315171C' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+</head>
+<body>
+
+<header class="bar">
+  <a class="brand" href="/strategy-lab/">
+    <span>strategy<span class="mark">-lab</span></span>
+    <span class="caption tertiary">backtesting platform</span>
+  </a>
+  <nav>
+    <a href="/strategy-lab/" class="on">Strategies</a>
+    <a href="/strategy-lab/showcase" >Showcase</a>
+    <a href="#" id="theme-toggle" title="Switch theme">Theme</a>
+  </nav>
+</header>
+
+<main>
+  
+<div class="page-head">
+  <div style="display:flex; align-items:center; gap:var(--s4); margin-bottom:var(--s3)">
+    <span class="badge">single</span>
+    <span class="badge">ported</span>
+  </div>
+  <h1 class="title">Bollinger Mean Reversion</h1>
+  <p>Fade moves outside a Bollinger band and take profit back at the moving average.</p>
+</div>
+
+
+<div class="notice" style="margin-bottom:var(--s7)">
+  <div>This is a static version of strategy-lab — the form below is shown as
+    a record of how each run was configured, not a live control. Run it
+    yourself at
+    <a href="https://github.com/amlelephant/strategy-lab">github.com/amlelephant/strategy-lab</a>.</div>
+</div>
+
+
+<!-- ── where the code is ────────────────────────────────────────────── -->
+<section style="margin-top:0">
+  <div class="card">
+    <div class="card-title">The code</div>
+    <div class="path-row">
+      <code class="mono" id="source-path">lab/strategies/mean_reversion.py</code>
+      <button type="button" class="btn-quiet" id="copy-path"
+              data-path="lab/strategies/mean_reversion.py">Copy</button>
+    </div>
+    <p class="caption tertiary" style="margin:var(--s5) 0 0">
+      <a href="/strategy-lab/docs">Running it from the code →</a>
+    </p>
+  </div>
+</section>
+
+<!-- ── the backtest ───────────────────────────────────────────────────
+     The <form> lives *inside* the section, not around it: wrapping the
+     section broke the `section + section` adjacency that spaces these
+     apart, so this heading sat flush against the card above it. The run
+     button in the footer bar reaches the form by its `form=` attribute,
+     so nothing needs the form to be an ancestor.
+
+     On a static build the fields stay on the page — disabled, via one
+     `<fieldset>` rather than an attribute repeated on every control — so a
+     visitor still sees what a run is configured with. Nothing in `lab.js`
+     wires them up in that case; see the `#run-btn` guard in initStrategy(). -->
+<section>
+  <div class="section-head">
+    <h2 class="headline">Backtest</h2>
+  </div>
+
+  <form id="run-form" data-key="mean_reversion" data-universe="single"
+        data-market-file="market_spy.csv" data-market-symbol="SPY">
+  <fieldset class="run-fields" disabled>
+  <div class="card">
+    <div class="card-title">Universe</div>
+    <div class="fields">
+      <label class="field">
+        <span>Selection</span>
+        <select name="universe_mode" id="universe-mode">
+          <option value="symbols" selected>Named symbols</option>
+          <option value="fundamentals" >Every company with fundamentals</option>
+          <option value="all">Every symbol in the price file</option>
+          <option value="sp500">The S&amp;P 500 itself (SPY)</option>
+        </select>
+        
+        <span class="hint" id="universe-notice" hidden></span>
+      </label>
+
+      <label class="field" id="symbols-field">
+        <span>Symbols</span>
+        <textarea name="symbols" placeholder="KO, PEP, XOM, CVX">KO, PEP, XOM, CVX</textarea>
+      </label>
+
+      <div class="fields two">
+        <label class="field"><span>Start</span>
+          <input type="date" name="start"></label>
+        <label class="field"><span>End</span>
+          <input type="date" name="end"></label>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <p class="caption tertiary" style="margin:0">
+      Survivorship-biased — delisted tickers are absent. Read results as an
+      upper bound.
+    </p>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <div class="card-title">Data</div>
+      <div class="fields">
+        <label class="field">
+          <span>Prices</span>
+          <select name="dataset" id="dataset">
+            
+            <option value="market_spy.csv" >market spy · 0.5 MB</option>
+            
+            <option value="prices.pkl" selected>prices · 16.8 MB</option>
+            
+          </select>
+        </label>
+        <label class="field">
+          <span>Fundamentals</span>
+          <select name="fundamentals">
+            <option value="">none</option>
+            
+            <option value="fundamentals_simfin.json" >fundamentals simfin · 11.0 MB</option>
+            
+          </select>
+          <span class="hint">Indexed by filing date</span>
+        </label>
+        <div class="caption tertiary" id="dataset-info">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Frictions</div>
+      <div class="fields">
+        <label class="field">
+          <span>Scenario</span>
+          <select name="scenario" id="scenario">
+            
+            <option value="conservative" >conservative</option>
+            
+            <option value="frictionless" >frictionless</option>
+            
+            <option value="optimistic" >optimistic</option>
+            
+            <option value="realistic" selected>realistic</option>
+            
+          </select>
+        </label>
+        <div class="fields two">
+          <label class="field"><span>Commission bps</span>
+            <input type="number" name="commission_bps" value="1.0" step="0.5" min="0"></label>
+          <label class="field"><span>Slippage bps</span>
+            <input type="number" name="slippage_bps" value="2.0" step="0.5" min="0"></label>
+        </div>
+        <label class="field">
+          <span>Fill timing</span>
+          <select name="timing">
+            <option value="next_open">Next bar's open</option>
+            <option value="close">Signal bar's close</option>
+          </select>
+          <span class="hint">Signal-bar close flatters — comparison only</span>
+        </label>
+        <div class="fields two">
+          
+          <label class="field"><span>Starting cash</span>
+            <input type="number" name="starting_cash" value="100000" step="1000" min="1000"></label>
+          <label class="field"><span>Seed</span>
+            <input type="number" name="seed" value="7" step="1"></label>
+        </div>
+      </div>
+    </div>
+  </div>
+  </fieldset>
+  </form>
+</section>
+
+
+
+
+<section>
+  <div class="section-head">
+    <h2 class="headline">Research</h2>
+    <code class="mono caption tertiary">research/strategies/mean_reversion.md</code>
+  </div>
+  <div class="card">
+    <div class="prose md"><h2>The claim</h2>
+<p>A liquid name pushed two standard deviations off its own short-run mean is more likely to come back than to keep going. Bands are <code>SMA(n) ± k·σ(n)</code>; flat and below the lower band goes long, flat and above the upper band goes short (if enabled), and either position closes back at the SMA — the mean is the target, not the opposite band. It is the simplest possible statement of mean reversion, and mostly a test of whether transaction costs eat the edge, which at a 20-bar window on daily bars they usually do. Run it at <code>frictionless</code> and then at <code>realistic</code> to see that story end to end.</p>
+<h2>The bug this port found</h2>
+<p>The original fired its stop-loss with <code>sell = change &lt; stop_loss</code>, where <code>change</code> is open P&amp;L in dollars and <code>stop_loss</code> was swept as a <em>positive</em> figure — 200, 500, 800. That comparison is true whenever P&amp;L is below <strong>plus</strong> $200: every losing position, every flat one, and every winning position up to $200. The stop fired on almost every bar a position was open, including on winners.</p>
+<p>A variable named <code>stop_loss</code>, swept over the same values as a <code>take_profit</code> that used the correct sign, is not ambiguous about intent. The port compares against <code>-stop_loss</code>. This is the one substantive change to the decision rule in this strategy, and it isn't kept behind a flag — unlike the <code>bw_cross_sectional</code> direction bug, the original behaviour here isn't an interesting alternative hypothesis, it's a typo whose only effect was to close positions at random. See <a href="../ported-changes.md"><code>research/ported-changes.md</code></a> for the full write-up, including why this one bug means results from the original sweep aren't comparable to results from this one.</p>
+<h2>What changed to make it backtestable at all</h2>
+<p>The original called <code>yf.download()</code> inside the strategy class and recomputed its bands from whatever window happened to be current when it ran — which is why the same code gave different answers on different days and couldn't be backtested in the first place. The port reads price history from <code>ctx</code>, deterministically, at the bar it's standing on. Position sizing also moved from <code>cash // price</code> — the entire account into one name, correct for a script that only ever looked at one symbol — to a declared <code>position_fraction</code> split across the universe; across more than one symbol, <code>cash // price</code> isn't sizing, it's a race the first symbol always wins.</p>
+<h2>What this doesn't establish</h2>
+<p>This is the control for "does a textbook mean-reversion rule survive contact with realistic costs," not a claim that it does. The honest use of this strategy is comparative: run it frictionless and realistic on the same symbols and see how much of the edge, if any, is a transaction-cost mirage.</p></div>
+  </div>
+</section>
+
+
+
+<section>
+  <div class="section-head">
+    <h2 class="headline">Previous runs</h2>
+  </div>
+  <div class="card flush">
+    <table class="data"><tbody>
+      
+      <tr>
+        <td class="name"><a href="/strategy-lab/run/22b6718c194d">Bollinger Mean Reversion</a></td>
+        <td class="secondary caption">2026-08-19T02:22:11+00:00</td>
+      </tr>
+      
+      <tr>
+        <td class="name"><a href="/strategy-lab/run/c96d193afb7a">Bollinger Mean Reversion</a></td>
+        <td class="secondary caption">2026-08-18T23:26:35+00:00</td>
+      </tr>
+      
+      <tr>
+        <td class="name"><a href="/strategy-lab/run/ab5164d2ba34">Bollinger Mean Reversion</a></td>
+        <td class="secondary caption">2026-08-18T23:22:32+00:00</td>
+      </tr>
+      
+      <tr>
+        <td class="name"><a href="/strategy-lab/run/9c02b6a50d24">Bollinger Mean Reversion</a></td>
+        <td class="secondary caption">2026-08-18T15:52:37+00:00</td>
+      </tr>
+      
+      <tr>
+        <td class="name"><a href="/strategy-lab/run/09bc129180ba">Bollinger Mean Reversion</a></td>
+        <td class="secondary caption">2026-08-18T15:52:23+00:00</td>
+      </tr>
+      
+      <tr>
+        <td class="name"><a href="/strategy-lab/run/09f5f2ae01ee">Bollinger Mean Reversion</a></td>
+        <td class="secondary caption">2026-08-18T15:52:22+00:00</td>
+      </tr>
+      
+      <tr>
+        <td class="name"><a href="/strategy-lab/run/2d6472c49855">Bollinger Mean Reversion</a></td>
+        <td class="secondary caption">2026-08-18T15:49:37+00:00</td>
+      </tr>
+      
+      <tr>
+        <td class="name"><a href="/strategy-lab/run/61231f1a1d79">Bollinger Mean Reversion</a></td>
+        <td class="secondary caption">2026-08-17T19:56:30+00:00</td>
+      </tr>
+      
+    </tbody></table>
+  </div>
+</section>
+
+
+
+<div class="footer-bar">
+  <div class="status">
+    Showing the most recently cached run.
+    
+  </div>
+  
+  <a class="btn-primary" href="/strategy-lab/run/22b6718c194d">Run backtest</a>
+  
+</div>
+
+
+</main>
+
+<script>window.LAB_API_ROOT = "/strategy-lab";</script>
+<script src="/strategy-lab/static/lab.js"></script>
+
+<script>Lab.strategy();</script>
+
+</body>
+</html>

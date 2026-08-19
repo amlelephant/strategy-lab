@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>100 Day Moving Average — strategy-lab</title>
+<link rel="stylesheet" href="/strategy-lab/static/lab.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%236E8BFF'/><path d='M8 22 L14 12 L18 18 L24 9' stroke='%2315171C' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+</head>
+<body>
+
+<header class="bar">
+  <a class="brand" href="/strategy-lab/">
+    <span>strategy<span class="mark">-lab</span></span>
+    <span class="caption tertiary">backtesting platform</span>
+  </a>
+  <nav>
+    <a href="/strategy-lab/" class="on">Strategies</a>
+    <a href="/strategy-lab/showcase" >Showcase</a>
+    <a href="#" id="theme-toggle" title="Switch theme">Theme</a>
+  </nav>
+</header>
+
+<main>
+  
+<div class="page-head">
+  <div style="display:flex; align-items:center; gap:var(--s4); margin-bottom:var(--s3)">
+    <span class="badge">single</span>
+    
+  </div>
+  <h1 class="title">100 Day Moving Average</h1>
+  <p>Buy when the index closes above its 100-day moving average and sell when it closes below.</p>
+</div>
+
+
+<div class="notice" style="margin-bottom:var(--s7)">
+  <div>This is a static version of strategy-lab — the form below is shown as
+    a record of how each run was configured, not a live control. Run it
+    yourself at
+    <a href="https://github.com/amlelephant/strategy-lab">github.com/amlelephant/strategy-lab</a>.</div>
+</div>
+
+
+<!-- ── where the code is ────────────────────────────────────────────── -->
+<section style="margin-top:0">
+  <div class="card">
+    <div class="card-title">The code</div>
+    <div class="path-row">
+      <code class="mono" id="source-path">lab/strategies/hundred_day_mov_avg.py</code>
+      <button type="button" class="btn-quiet" id="copy-path"
+              data-path="lab/strategies/hundred_day_mov_avg.py">Copy</button>
+    </div>
+    <p class="caption tertiary" style="margin:var(--s5) 0 0">
+      <a href="/strategy-lab/docs">Running it from the code →</a>
+    </p>
+  </div>
+</section>
+
+<!-- ── the backtest ───────────────────────────────────────────────────
+     The <form> lives *inside* the section, not around it: wrapping the
+     section broke the `section + section` adjacency that spaces these
+     apart, so this heading sat flush against the card above it. The run
+     button in the footer bar reaches the form by its `form=` attribute,
+     so nothing needs the form to be an ancestor.
+
+     On a static build the fields stay on the page — disabled, via one
+     `<fieldset>` rather than an attribute repeated on every control — so a
+     visitor still sees what a run is configured with. Nothing in `lab.js`
+     wires them up in that case; see the `#run-btn` guard in initStrategy(). -->
+<section>
+  <div class="section-head">
+    <h2 class="headline">Backtest</h2>
+  </div>
+
+  <form id="run-form" data-key="hundred_day_mov_avg" data-universe="single"
+        data-market-file="market_spy.csv" data-market-symbol="SPY">
+  <fieldset class="run-fields" disabled>
+  <div class="card">
+    <div class="card-title">Universe</div>
+    <div class="fields">
+      <label class="field">
+        <span>Selection</span>
+        <select name="universe_mode" id="universe-mode">
+          <option value="symbols" selected>Named symbols</option>
+          <option value="fundamentals" >Every company with fundamentals</option>
+          <option value="all">Every symbol in the price file</option>
+          <option value="sp500">The S&amp;P 500 itself (SPY)</option>
+        </select>
+        
+        <span class="hint" id="universe-notice" hidden></span>
+      </label>
+
+      <label class="field" id="symbols-field">
+        <span>Symbols</span>
+        <textarea name="symbols" placeholder="KO, PEP, XOM, CVX">SPY</textarea>
+      </label>
+
+      <div class="fields two">
+        <label class="field"><span>Start</span>
+          <input type="date" name="start"></label>
+        <label class="field"><span>End</span>
+          <input type="date" name="end"></label>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <p class="caption tertiary" style="margin:0">
+      Survivorship-biased — delisted tickers are absent. Read results as an
+      upper bound.
+    </p>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <div class="card-title">Data</div>
+      <div class="fields">
+        <label class="field">
+          <span>Prices</span>
+          <select name="dataset" id="dataset">
+            
+            <option value="market_spy.csv" selected>market spy · 0.5 MB</option>
+            
+            <option value="prices.pkl" >prices · 16.8 MB</option>
+            
+          </select>
+        </label>
+        <label class="field">
+          <span>Fundamentals</span>
+          <select name="fundamentals">
+            <option value="">none</option>
+            
+            <option value="fundamentals_simfin.json" >fundamentals simfin · 11.0 MB</option>
+            
+          </select>
+          <span class="hint">Indexed by filing date</span>
+        </label>
+        <div class="caption tertiary" id="dataset-info">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Frictions</div>
+      <div class="fields">
+        <label class="field">
+          <span>Scenario</span>
+          <select name="scenario" id="scenario">
+            
+            <option value="conservative" >conservative</option>
+            
+            <option value="frictionless" >frictionless</option>
+            
+            <option value="optimistic" >optimistic</option>
+            
+            <option value="realistic" selected>realistic</option>
+            
+          </select>
+        </label>
+        <div class="fields two">
+          <label class="field"><span>Commission bps</span>
+            <input type="number" name="commission_bps" value="1.0" step="0.5" min="0"></label>
+          <label class="field"><span>Slippage bps</span>
+            <input type="number" name="slippage_bps" value="2.0" step="0.5" min="0"></label>
+        </div>
+        <label class="field">
+          <span>Fill timing</span>
+          <select name="timing">
+            <option value="next_open">Next bar's open</option>
+            <option value="close">Signal bar's close</option>
+          </select>
+          <span class="hint">Signal-bar close flatters — comparison only</span>
+        </label>
+        <div class="fields two">
+          
+          <label class="field"><span>Starting cash</span>
+            <input type="number" name="starting_cash" value="100000" step="1000" min="1000"></label>
+          <label class="field"><span>Seed</span>
+            <input type="number" name="seed" value="7" step="1"></label>
+        </div>
+      </div>
+    </div>
+  </div>
+  </fieldset>
+  </form>
+</section>
+
+
+
+
+<section>
+  <div class="section-head">
+    <h2 class="headline">Research</h2>
+    <code class="mono caption tertiary">research/strategies/hundred_day_mov_avg.md</code>
+  </div>
+  <div class="card">
+    <div class="prose md"><h2>The claim</h2>
+<p>Hold the index while it closes above its 100-day moving average; hold cash while it closes below. This strategy is made in order to reduce risk. You will inevitably loose out on a decent amount of upside when you try to predict the downside. Luckily it isn't incredably hard to get out if we simplify the stock market down to swings. Although these are not completely accurate we still have a good rough model that allows us to retain much of the returns of the market while reducing risk to capital. This is a very effective strategy when downside risk is to be avoided at all cost. Something like a hedge fund trading on margin would find this strategy enticing because it will redcue market exposure by an immense amount.</p>
+<h2>Backtest Results</h2>
+<p>SPY, auto-adjusted daily closes, 2005-01-03 to 2025-06-27 which came out to 5,154 bars, chosen to span 2008, 2020 and 2022 rather than only the window in <code>prices.pkl</code>. Benchmark is the S&amp;P 500 itself, <code>realistic</code> frictions, fills at the next bar's open.</p>
+<div class="table-wrap"><table class="data prose-table"><thead><tr><th></th><th>RETURN</th><th>CAGR</th><th>ALPHA</th><th>T</th><th>BETA</th><th>VS S&amp;P</th><th>SHARPE</th><th>MAX DD</th><th>TRADES</th></tr></thead><tbody><tr><td>100 Day Moving Average</td><td>+401.89%</td><td>8.21%</td><td>+3.61%</td><td>2.0</td><td>0.32</td><td>−3.23%</td><td>0.64</td><td>−17.94%</td><td>102</td></tr><tr><td>S&amp;P 500</td><td>+649.21%</td><td>10.35%</td><td>—</td><td>—</td><td>1.00</td><td>—</td><td>0.52</td><td>−55.19%</td><td>0</td></tr></tbody></table></div>
+<p>Sharpe and alpha are both measured in excess of the 13-week T-bill, which averaged 1.64% over this window. It underperformed the market but also maintained the expected lower draw down.</p>
+<p><strong>It returned less while still having something up on the market:</strong> The ALPHA and VS S&amp;P columns disagree on purpose and both are correct:</p>
+<p><em> <strong>+3.61% alpha</strong>: what it earned per unit of market risk. Its beta is 0.32, so the market's rise explains only a third of its returns. </em> <strong>−3.23% vs the S&amp;P</strong>: what it earned outright. It finished well behind the index, which is what the equity chart shows.</p>
+<p>The main goal of this was to demonstrate a good low risk strategy. With it producing two thirds of the market return while only taking one third of its risk I would say that this was successful. Both sharpe ratios still remain low comapred with the current market conditions which have shown a 1.7 trailing 12 month sharpe ratio. The purpose of this test was the long run though.</p>
+<p>And at t = 2.0 the alpha does not clear the <code>|t| &gt; 2</code> bar this repository uses. This means we get an inconclusive result even though we are very close to a positive one.</p>
+<h2>The parameter plateau</h2>
+<p>Nine combinations of <code>window</code> and <code>band</code>:</p>
+<pre><code>python run.py sweep hundred_day_mov_avg --data market_spy.csv --symbols SPY</code></pre>
+<p>Best Sharpe 0.64 (deflated 0.50), and <strong>44% of the grid is within 20% of it</strong>. A rule whose only good result sits at one parameter value is a rule fitted to this sample; this one works over 100 and 200 bars and over three band widths, which is what a real effect looks like rather than a lucky corner of a grid. It is a narrower plateau than it appeared before the risk-free rate was subtracted — that correction cost every cell roughly 0.15 of Sharpe and cost the <code>window=50</code> rows their significance.</p>
+<p>The band is worth reading across, not just past. At <code>band=0.01</code> the trade count falls from 102 to 43 and the Sharpe barely moves (0.64 → 0.61) — most of the crossings the plain rule trades are noise it pays for and does not profit from. At <code>window=200, band=0.02</code> seventeen trades produce essentially the same Sharpe as the best cell.</p>
+<p>This goes to show that, for this strategy, finding more trades introduces superfluous signals. On the other end not finding enough will miss important ones. This decay however is not very significant to the results as you can see in the paragraphs above.</p>
+<h2>What it costs</h2>
+<p><strong>Whipsaw.</strong> In a range-bound market the price crosses its average repeatedly and the rule pays costs on every crossing for no directional gain. The 2015-16 and 2011 stretches are where the equity curve goes flat while trades keep accumulating. <code>band</code> measures this rather than hiding it.</p>
+<p><strong>It is long/flat.</strong> It cannot profit from a decline, only sit out of one. Half the theoretical value of a trend signal is unavailable to it by construction.</p>
+<p><strong>It lags both ways.</strong> A 100-day average turns roughly 50 bars after the price does, so every entry gives up the start of a rally and every exit gives up the start of a decline. That lag is the mechanism, not a flaw to tune away — a faster average whipsaws more, which is exactly what the <code>window=50</code> rows show (173 trades, Sharpe 0.35, the worst cell in the grid).</p>
+<h2>Key considerations</h2>
+<p><strong>One series is one series.</strong> The alpha t-statistic of 2.0 treats 5,153 autocorrelated daily observations as independent. The rule actually made on the order of 102 decisions, and its outcome is dominated by perhaps four regime episodes — 2008, 2020, 2022, and the 2011 chop. Four episodes is not a sample, and t = 2.0 should be read as an upper bound on confidence rather than the confidence itself. It is already below the bar; the honest reading is that this sample cannot distinguish the rule from luck.</p>
+<p><strong>The window flatters trend-following.</strong> 2005-2025 contains two drawdowns over 30% and one over 50%. A rule whose entire edge is sitting out large sustained declines will look good on any window that contains large sustained declines, and 1990-2000 or 2012-2020 would not have contained them. This result is conditional on the sample including 2008.</p>
+<p><strong>It is the most data-mined rule in finance.</strong> A 100-day average on the S&amp;P has been examined by everyone with a price series for a century. Any edge visible here has been visible to everyone, and the plateau above establishes robustness to <em>parameter</em> choice, not to that.</p>
+<p><strong>Costs are modelled, not paid.</strong> 1bp commission and 2bp slippage on SPY is generous but it is still a model, and it excludes taxes entirely. A hundred round trips in a taxable account is a materially different result, and this platform does not model tax.</p>
+<p><strong>The cash still earns nothing.</strong> The rule holds cash at 0% while flat, roughly a quarter of the sample. The <em>measurement</em> now charges a T-bill rate — Sharpe and alpha are excess of it — but the simulated portfolio is not credited with that interest. A framework change is ahead where interest rates will be historically gathered in order to accurately credit the accounts with interest on parked cash.</p>
+<p><strong>No shorting and no leverage.</strong> A rule with a 0.32 beta and positive alpha is, in theory, a candidate for leverage — that is how a risk-adjusted edge becomes money. Levered three times it would carry the market's risk and, if the alpha survived, beat it. Nothing here tests that, and financing costs, margin calls during the 2020 gap and the path-dependence of daily rebalancing would all bite in ways this backtest cannot see. Treat "positive alpha" as a statement about this equity curve, not as a plan. Given that this is one of the most researched strategies of all time we can see that there is likely little edge here, but a full backtest of a leveraged strategy is still in the works.</p></div>
+  </div>
+</section>
+
+
+
+<section>
+  <div class="section-head">
+    <h2 class="headline">Previous runs</h2>
+  </div>
+  <div class="card flush">
+    <table class="data"><tbody>
+      
+      <tr>
+        <td class="name"><a href="/strategy-lab/run/63caa8cb8b7f">100 Day Moving Average</a></td>
+        <td class="secondary caption">2026-08-19T01:47:31+00:00</td>
+      </tr>
+      
+      <tr>
+        <td class="name"><a href="/strategy-lab/run/c06014a80b5a">100 Day Moving Average</a></td>
+        <td class="secondary caption">2026-08-18T14:54:18+00:00</td>
+      </tr>
+      
+      <tr>
+        <td class="name"><a href="/strategy-lab/run/def4b3035a82">100 Day Moving Average</a></td>
+        <td class="secondary caption">2026-08-17T19:56:29+00:00</td>
+      </tr>
+      
+    </tbody></table>
+  </div>
+</section>
+
+
+
+<div class="footer-bar">
+  <div class="status">
+    Showing the most recently cached run.
+    
+  </div>
+  
+  <a class="btn-primary" href="/strategy-lab/run/63caa8cb8b7f">Run backtest</a>
+  
+</div>
+
+
+</main>
+
+<script>window.LAB_API_ROOT = "/strategy-lab";</script>
+<script src="/strategy-lab/static/lab.js"></script>
+
+<script>Lab.strategy();</script>
+
+</body>
+</html>

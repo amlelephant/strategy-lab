@@ -307,7 +307,7 @@ def cmd_serve(args) -> None:
 
 def cmd_freeze(args) -> None:
     from lab.web.freeze import freeze
-    freeze(Path(args.out))
+    freeze(Path(args.out), base_path=args.base_path)
 
 
 
@@ -415,6 +415,10 @@ def build_parser() -> argparse.ArgumentParser:
         "freeze", help="render the read-only pages to static HTML/JSON")
     freeze.add_argument("--out", default="dist",
                         help="output directory (default: dist/)")
+    freeze.add_argument("--base-path", default="",
+                        help="subdirectory the site will be served under, "
+                             "e.g. strategy-lab for a GitHub Pages project "
+                             "site at user.github.io/strategy-lab/")
     freeze.set_defaults(func=cmd_freeze)
 
     return parser

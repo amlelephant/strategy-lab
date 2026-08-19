@@ -261,7 +261,9 @@ button, .btn, .btn-primary, .btn-secondary, .btn-quiet {
 .btn-primary { background: var(--accent); color: #fff; border-radius: var(--r-full); }
 .btn-primary:hover { background: var(--accent-pressed); text-decoration: none; }
 .btn-primary:active { transform: scale(0.985); }
-.btn-primary:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+.btn-primary:disabled,
+.btn-primary[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; transform: none; }
+.btn-primary[aria-disabled="true"] { pointer-events: none; }
 .btn-secondary {
   background: var(--surface-raised); color: var(--text-primary);
   border-color: var(--border);
@@ -315,6 +317,14 @@ select.compact {
 
 .field-row { display: flex; align-items: center; gap: var(--s3); }
 .field-row input[type="checkbox"] { flex: none; }
+
+/* A `<fieldset disabled>` is the one-attribute way to grey out every control
+   inside it on a static build, but the element itself carries a browser
+   default border, padding and min-width that would otherwise reshape the
+   cards around it — reset to nothing so it is invisible when it isn't doing
+   that job. */
+.run-fields { border: 0; margin: 0; padding: 0; min-width: 0; }
+.run-fields:disabled .card { opacity: 0.6; }
 
 .fields { display: grid; gap: var(--s6); }
 .fields.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }

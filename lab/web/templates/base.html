@@ -25,6 +25,7 @@
   {% block content %}{% endblock %}
 </main>
 
+<script>window.LAB_API_ROOT = {{ request.script_root | tojson }};</script>
 <script src="{{ url_for('static', filename='lab.js') }}"></script>
 {% block scripts %}{% endblock %}
 </body>

@@ -15,6 +15,14 @@ const Lab = (() => {
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
   const SVG_NS = "http://www.w3.org/2000/svg";
 
+  /* `url_for()` in the templates already knows to prefix its own links with
+     the app's mount point — that's how a GitHub Pages project site, served
+     under /strategy-lab/ rather than the domain root, still links between
+     pages correctly. A fetch() call is a bare string this module writes
+     itself, so it does not get that for free; API_ROOT is the one place
+     that prefix is threaded through to it. Empty on a normal server. */
+  const API_ROOT = window.LAB_API_ROOT || "";
+
   /* ── formatting ─────────────────────────────────────────────────── */
 
   const pct = (v, digits = 2) =>
@@ -271,7 +279,7 @@ const Lab = (() => {
     const tick = async () => {
       let job;
       try {
-        const response = await fetch(`/api/job/${jobId}`);
+        const response = await fetch(`${API_ROOT}/api/job/${jobId}`);
         job = await response.json();
       } catch (err) {
         setTimeout(tick, 1500);
@@ -313,18 +321,6 @@ const Lab = (() => {
 
   function initStrategy() {
     initTheme();
-    const form = $("#run-form");
-    // Absent on a static mirror — no server behind it to run a job against,
-    // so the whole form is replaced with a note instead of rendering here.
-    if (!form) return;
-    const runBtn = $("#run-btn");
-    const status = $("#run-status");
-    /* getAttribute, not `form.dataset.key`. A form exposes its own controls
-       as named properties, and that named getter *overrides* built-ins — so
-       with a `<select name="dataset">` on this page, `form.dataset` is the
-       select element and `.key` on it is undefined. The run then posts a
-       null strategy and silently backtests only the controls. */
-    const key = form.getAttribute("data-key");
 
     const copyBtn = $("#copy-path");
     if (copyBtn) {
@@ -346,6 +342,22 @@ const Lab = (() => {
         setTimeout(() => { copyBtn.textContent = "Copy"; }, 1600);
       });
     }
+
+    const form = $("#run-form");
+    const runBtn = $("#run-btn");
+    // The form itself still renders on a static build — disabled, as a
+    // record of how a run is configured — but its submit button doesn't, so
+    // this is where a static build stops: no listener needs wiring to a
+    // fieldset nothing can submit, and `describeDataset` below would just be
+    // a fetch to an endpoint that was never frozen.
+    if (!form || !runBtn) return;
+    const status = $("#run-status");
+    /* getAttribute, not `form.dataset.key`. A form exposes its own controls
+       as named properties, and that named getter *overrides* built-ins — so
+       with a `<select name="dataset">` on this page, `form.dataset` is the
+       select element and `.key` on it is undefined. The run then posts a
+       null strategy and silently backtests only the controls. */
+    const key = form.getAttribute("data-key");
 
     $$(".preset").forEach((button) => {
       button.addEventListener("click", () => {
@@ -432,7 +444,7 @@ const Lab = (() => {
       const info = $("#dataset-info");
       info.textContent = "reading…";
       try {
-        const response = await fetch(`/api/dataset/${encodeURIComponent(id)}`);
+        const response = await fetch(`${API_ROOT}/api/dataset/${encodeURIComponent(id)}`);
         const d = await response.json();
         info.textContent = `${d.symbols.toLocaleString()} symbols · ` +
           `${d.bars.toLocaleString()} bars · ${d.start} to ${d.end}` +
@@ -472,7 +484,7 @@ const Lab = (() => {
       status.className = "status";
       status.textContent = "starting…";
       try {
-        const response = await fetch("/api/run", {
+        const response = await fetch(`${API_ROOT}/api/run`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload()),
@@ -545,7 +557,7 @@ const Lab = (() => {
           if (!curves.has(id)) {
             compare.disabled = true;
             try {
-              const response = await fetch(`/api/curve/${id}`);
+              const response = await fetch(`${API_ROOT}/api/curve/${id}`);
               curves.set(id, response.ok ? await response.json() : null);
             } catch (err) {
               curves.set(id, null);
@@ -803,7 +815,7 @@ const Lab = (() => {
       status.className = "caption secondary";
       const data = new FormData(form);
       try {
-        const response = await fetch("/api/strategies/new", {
+        const response = await fetch(`${API_ROOT}/api/strategies/new`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

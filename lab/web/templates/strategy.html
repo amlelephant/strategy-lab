@@ -11,6 +11,15 @@
   <p>{{ strategy.summary }}</p>
 </div>
 
+{% if config.STATIC_BUILD %}
+<div class="notice" style="margin-bottom:var(--s7)">
+  <div>This is a static version of strategy-lab — the form below is shown as
+    a record of how each run was configured, not a live control. Run it
+    yourself at
+    <a href="https://github.com/amlelephant/strategy-lab">github.com/amlelephant/strategy-lab</a>.</div>
+</div>
+{% endif %}
+
 <!-- ── where the code is ────────────────────────────────────────────── -->
 <section style="margin-top:0">
   <div class="card">
@@ -26,24 +35,17 @@
   </div>
 </section>
 
-{% if config.STATIC_BUILD %}
-{# A frozen mirror has no server behind it to run a job or poll one — the
-   form's first fetch would just 404. Read-only content (the research and
-   past runs below) is exactly what a static host can serve honestly; the
-   backtest form is not, so it is a note instead of a broken control. #}
-<section>
-  <div class="notice">
-    <div>This is a static mirror. Backtests run against the live repository —
-      clone it and <code class="mono">python run.py serve</code>.</div>
-  </div>
-</section>
-{% else %}
 <!-- ── the backtest ───────────────────────────────────────────────────
      The <form> lives *inside* the section, not around it: wrapping the
      section broke the `section + section` adjacency that spaces these
      apart, so this heading sat flush against the card above it. The run
      button in the footer bar reaches the form by its `form=` attribute,
-     so nothing needs the form to be an ancestor. -->
+     so nothing needs the form to be an ancestor.
+
+     On a static build the fields stay on the page — disabled, via one
+     `<fieldset>` rather than an attribute repeated on every control — so a
+     visitor still sees what a run is configured with. Nothing in `lab.js`
+     wires them up in that case; see the `#run-btn` guard in initStrategy(). -->
 <section>
   <div class="section-head">
     <h2 class="headline">Backtest</h2>
@@ -51,6 +53,7 @@
 
   <form id="run-form" data-key="{{ strategy.key }}" data-universe="{{ strategy.universe }}"
         data-market-file="{{ market_file }}" data-market-symbol="{{ market_symbol }}">
+  <fieldset class="run-fields" {% if config.STATIC_BUILD %}disabled{% endif %}>
   <div class="card">
     <div class="card-title">Universe</div>
     <div class="fields">
@@ -154,9 +157,9 @@
       </div>
     </div>
   </div>
+  </fieldset>
   </form>
 </section>
-{% endif %}
 
 {# "What it claims" (strategy.notes) and "Provenance" used to render here.
    Both are notes to whoever maintains the file — a claim to falsify and a
@@ -194,7 +197,19 @@
 </section>
 {% endif %}
 
-{% if not config.STATIC_BUILD %}
+{% if config.STATIC_BUILD %}
+<div class="footer-bar">
+  <div class="status">
+    {% if runs %}Showing the most recently cached run.
+    {% else %}No cached run for this strategy yet.{% endif %}
+  </div>
+  {% if runs %}
+  <a class="btn-primary" href="{{ url_for('run_page', job_id=runs[0].id) }}">Run backtest</a>
+  {% else %}
+  <span class="btn-primary" aria-disabled="true">Run backtest</span>
+  {% endif %}
+</div>
+{% else %}
 <div class="footer-bar">
   <div class="status" id="run-status">Ready.</div>
   <button type="submit" form="run-form" class="btn-primary" id="run-btn">Run backtest</button>

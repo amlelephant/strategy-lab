@@ -42,13 +42,6 @@
           <a href="{{ url_for('strategy_page', key=s.key) }}">run one</a></p>
       </div>
       {% endif %}
-
-      {% if row.writeup %}
-      <details class="show-research">
-        <summary>Research — <code class="mono">research/strategies/{{ s.key }}.md</code></summary>
-        <div class="prose md">{{ row.writeup|safe }}</div>
-      </details>
-      {% endif %}
     </div>
     {% endfor %}
   </div>

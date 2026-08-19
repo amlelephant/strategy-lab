@@ -529,25 +529,6 @@ table.data td.name, table.data th.name { white-space: nowrap; font-weight: 600; 
 .show-empty { padding: var(--s6); }
 .show-empty p { margin: 0; }
 
-/* Collapsed by default: a full write-up per card, expanded, would make every
-   row's height match its longest neighbour's essay rather than its own
-   result. `<details>` keeps the grid even and still puts the file itself on
-   the page, one click away, rather than only linking off it. */
-.show-research { border-top: 1px solid var(--border); padding: 0 var(--s6) var(--s6); }
-.show-research summary {
-  list-style: none; cursor: pointer; padding: var(--s5) 0;
-  display: flex; align-items: center; gap: var(--s3);
-  font-size: 13px; font-weight: 500; color: var(--text-secondary);
-}
-.show-research summary::-webkit-details-marker { display: none; }
-.show-research summary::before {
-  content: "▸"; color: var(--text-tertiary); font-size: 11px;
-  transition: transform var(--fast) var(--ease);
-}
-.show-research[open] summary::before { transform: rotate(90deg); }
-.show-research summary:hover { color: var(--text-primary); }
-.show-research .prose.md { padding-bottom: var(--s3); }
-
 .prose { max-width: 68ch; color: var(--text-secondary); font-size: 15px;
          line-height: 1.6; }
 .prose p + p { margin-top: var(--s5); }

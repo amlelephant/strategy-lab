@@ -498,8 +498,7 @@ def showcase():
         latest[key] = {"sleeve": sleeve, "benchmark": result.get("benchmark"),
                        "run_id": run["id"], "created": run["created"]}
 
-    rows = [{"strategy": s, "featured": latest.get(s["key"]),
-            "writeup": load_writeup(s["key"])} for s in strategies]
+    rows = [{"strategy": s, "featured": latest.get(s["key"])} for s in strategies]
     return render_template("showcase.html", rows=rows)
 
 
@@ -555,8 +554,11 @@ def run_page(job_id: str):
             "error.html", code=410,
             message="Parameter sweeps run in code now — `python -m "
                     "lab.strategies.<name>` — and print to the terminal."), 410
+    key = subject_of({"request": job.request, "result": job.result})
     return render_template("result.html", job=job.public(), job_id=job_id,
-                           comparisons=comparison_options())
+                           comparisons=comparison_options(),
+                           writeup=load_writeup(key) if key else None,
+                           writeup_path=writeup_path(key) if key else None)
 
 
 # ═══════════════════════════════════════════════════════════════════════════

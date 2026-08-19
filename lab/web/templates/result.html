@@ -175,6 +175,18 @@
     </div>
   </section>
 
+  {% if writeup %}
+  <section>
+    <div class="section-head">
+      <h2 class="headline">Research</h2>
+      <code class="mono caption tertiary">{{ writeup_path }}</code>
+    </div>
+    <div class="card">
+      <div class="prose md">{{ writeup|safe }}</div>
+    </div>
+  </section>
+  {% endif %}
+
 </div>
 {% endblock %}
 

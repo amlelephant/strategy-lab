@@ -196,6 +196,33 @@
     </div>
   </section>
 
+  
+  <section>
+    <div class="section-head">
+      <h2 class="headline">Research</h2>
+      <code class="mono caption tertiary">research/strategies/bw_valuation.md</code>
+    </div>
+    <div class="card">
+      <div class="prose md"><h2>The claim</h2>
+<p>Score every company on quality, valuation and leverage against hand-set absolute ranges — not against the current peer group — and hold the top decile. Nothing here was chosen by fitting: the ranges are a judgement about what "good" looks like for a business, written down before any of it was tested.</p>
+<div class="table-wrap"><table class="data prose-table"><thead><tr><th>Metric</th><th>Anchor range</th><th>Direction</th></tr></thead><tbody><tr><td>Operating Margin</td><td>0.05 – 0.40</td><td>higher</td></tr><tr><td>FCF Margin</td><td>0.05 – 0.30</td><td>higher</td></tr><tr><td>ROIC</td><td>0.05 – 0.40</td><td>higher</td></tr><tr><td>Revenue Growth</td><td>0.00 – 0.15</td><td>higher</td></tr><tr><td>Net Debt/EBITDA</td><td>0.0 – 3.0</td><td>lower</td></tr><tr><td>P/E</td><td>5 – 50</td><td>lower</td></tr><tr><td>EV/EBITDA</td><td>5 – 40</td><td>lower</td></tr><tr><td>FCF Yield</td><td>0.01 – 0.12</td><td>higher</td></tr></tbody></table></div>
+<h2>Why the older, simpler scorer is the one worth keeping</h2>
+<p><code>bw_cross_sectional</code> — written later, and more sophisticated — replaced fixed anchors with a peer-relative percentile. That requires a distribution, and the moment a model needs a distribution it has to decide <em>which one</em>. The natural, wrong answer is "all the data I have," which includes the future: the cross-sectional successor did exactly that, pooling every ticker across all sixteen quarters and ranking each company-quarter against a pool that included data three years ahead of it.</p>
+<p>This version cannot have that bug. It needs no peer group, so a company's score depends only on its own numbers. It also encodes each metric's direction once, in a table, where a wrong entry is visible on inspection — the successor passed direction as a keyword argument and defaulted three of eight the wrong way, which is not visible on inspection and cost 8.3 points of CAGR before anyone noticed.</p>
+<h2>What it costs</h2>
+<p>The anchors are calibrated to US large caps around the time they were written, and they don't travel. A 0.05–0.40 operating-margin range makes every grocer look terrible and every software company look excellent, and neither is a judgement about the management running either one. Compare its return against the cross-sectional version's, below — the gap is roughly what adapting to the current peer group is worth, when the adaptation isn't buggy.</p>
+<h2>What it measured</h2>
+<p>1,747 companies, quarterly rebalance at the filing date, top 20% by score, equal weight, 2021–2025:</p>
+<div class="table-wrap"><table class="data prose-table"><thead><tr><th></th><th>Return</th><th>CAGR</th><th>Sharpe</th><th>t</th><th>Max DD</th></tr></thead><tbody><tr><td>BW Valuation (absolute anchors)</td><td>+52.41%</td><td>9.90%</td><td>0.58</td><td>1.2</td><td>−25.21%</td></tr><tr><td>BW Valuation (cross-sectional, corrected)</td><td>+77.72%</td><td>13.75%</td><td>0.72</td><td>1.5</td><td>−23.53%</td></tr><tr><td>Buy and hold, same costs</td><td>+39.19%</td><td>7.69%</td><td>0.46</td><td>1.0</td><td>−30.02%</td></tr></tbody></table></div>
+<p>It beats the buy-and-hold control with less drawdown, after costs. It earns less than the corrected peer-relative version — 9.90% CAGR against 13.75% — which is the price of never being able to leak information across time.</p>
+<h2>What this doesn't establish</h2>
+<p>Fifteen quarterly rebalances is fifteen independent decisions, however many points the daily equity curve has; the t-statistic above treats 1,125 autocorrelated daily observations as independent and should be read as an upper bound on confidence, not the confidence itself. The universe is companies that still resolve today, which removes exactly the failures a cheap, indebted screen tends to select — survivorship bias in the strategy's own favor, unmeasured here. And 2021–2025 is one macro regime. See <a href="../results.md"><code>research/results.md</code></a> for the complete caveat list, which applies to both BW variants identically.</p>
+<h2>Where the code came from</h2>
+<p>Ported from <code>fundamentals-v1/quality/weighting.py</code> and <code>fundamentals-v1/valuation/metrics.py</code> — two anchor tables, <code>highs_and_lows</code> and <code>range_settings</code>, with different normalisers for the quality and valuation halves. The port keeps both normalisers rather than collapsing them to one, because collapsing them would have been tidier and would have changed every score.</p></div>
+    </div>
+  </section>
+  
+
 </div>
 
 </main>

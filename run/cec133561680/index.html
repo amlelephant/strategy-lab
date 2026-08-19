@@ -196,6 +196,32 @@
     </div>
   </section>
 
+  
+  <section>
+    <div class="section-head">
+      <h2 class="headline">Research</h2>
+      <code class="mono caption tertiary">research/strategies/stat_arb_ev.md</code>
+    </div>
+    <div class="card">
+      <div class="prose md"><h2>The claim</h2>
+<p>Same signal as <code>stat_arb</code> — same hedge ratio, same z-score — but it won't enter unless the arithmetic works. The thesis, stated once so the four gates make sense: a retail account cannot compete with anyone on sub-day timescales, so the only spreads worth trading are those that revert slowly enough that execution latency doesn't matter, <em>and</em> whose expected capture is large relative to both the cost of trading and the volatility of holding through the reversion.</p>
+<h2>The four gates</h2>
+<p>Each rejects for a different reason, and each rejection is written to the run log — so "how many trades did the half-life gate refuse" is a question with an answer, not an assumption.</p>
+<ol><li><strong>Half-life.</strong> Too fast (below <code>min_half_life</code>) is somebody else's game — the domain of participants with better fills and lower latency than a backtest can claim for a retail account. Too slow (above <code>max_half_life</code>) ties up capital in a position that may not revert this quarter. This gate does most of the work.</li><li><strong>Breakeven z.</strong> The minimum |z| at which expected capture covers commission and slippage <em>at this position size</em>, derived from the run's own cost model — never a hardcoded number, so changing the cost scenario in the console changes what this gate rejects.</li><li><strong>Reward/risk.</strong> Net expected value against one standard deviation of hold-period spread movement. A positive EV that's 3% of the noise around it isn't a trade, it's a coin flip with a small tilt.</li><li><strong>Minimum EV.</strong> An absolute dollar floor, so tiny positions where fees dominate never get taken.</li></ol>
+<p>An earlier version of this filter gated on <code>net_ev &gt; $10</code> and <code>sharpe_contribution &gt; 0.5</code>, and rejected nothing in any backtest run against it — a $12k position at z = 2.2 clears a $10 floor trivially. A filter that never fires is worse than no filter, because it looks like risk management without doing any.</p>
+<h2>What it does to the trade count</h2>
+<p>Four names (KO/PEP, XOM/CVX), same period, same costs as the unfiltered version:</p>
+<div class="table-wrap"><table class="data prose-table"><thead><tr><th></th><th>Return</th><th>Sharpe</th><th>t</th><th>Max DD</th><th>Trades</th></tr></thead><tbody><tr><td>Statistical Arbitrage (z-score)</td><td>−27.84%</td><td>−0.98</td><td>−2.1</td><td>−29.98%</td><td>96</td></tr><tr><td><strong>Statistical Arbitrage (EV-filtered)</strong></td><td><strong>−24.16%</strong></td><td><strong>−0.92</strong></td><td>−1.9</td><td><strong>−26.37%</strong></td><td><strong>92</strong></td></tr><tr><td>Buy and Hold</td><td>+88.20%</td><td>0.88</td><td>1.9</td><td>−14.37%</td><td>4</td></tr></tbody></table></div>
+<p>The filter rejected 25 of 71 signals — 15 of them on a half-life under two days, the regime where execution quality decides the outcome and this isn't the strategy deciding it. It improved the result. <strong>Both versions still lose</strong>, and lose to holding the same names. Run this beside <code>stat_arb</code> on the same universe; the interesting output isn't which one earns more, it's the rejection log, which says how many of the baseline's trades were never worth taking and which gate caught them.</p>
+<h2>Where the half-life estimate changed</h2>
+<p>The original filter's half-life came from a Kalman-filtered partial- cointegration model, running through a compiled C++ engine (<code>stat-arb-v2/core/stat_engine.cpp</code>) via <code>ctypes</code>. The port replaces it with a direct Ornstein-Uhlenbeck fit in NumPy — regress Δspread on lagged spread, <code>half_life = −ln2 / ln(1 + b)</code>. The two agree closely on well-behaved spreads and diverge on spreads with a large random-walk component, where the Kalman version is the better estimate. <strong>This is a real capability loss</strong>, accepted for portability — no build step, no compiled dependency — and it's the one change in this codebase made for that reason rather than for correctness. See <a href="../ported-changes.md"><code>research/ported-changes.md</code></a>.</p>
+<h2>What this doesn't establish</h2>
+<p>A filter that rejects the worst of a losing strategy's trades and still loses is doing its job, not failing at it — the honest reading is that the fast end of daily-bar pairs trading on liquid names belongs to participants this backtest cannot represent, which is exactly what the filter's thesis predicted before any of this was run. That prediction being consistent with the result is not the same as the result being large; both Sharpe ratios sit</p>
+<p>below |t| = 2.</p></div>
+    </div>
+  </section>
+  
+
 </div>
 
 </main>

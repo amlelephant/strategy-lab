@@ -196,6 +196,34 @@
     </div>
   </section>
 
+  
+  <section>
+    <div class="section-head">
+      <h2 class="headline">Research</h2>
+      <code class="mono caption tertiary">research/strategies/bw_cross_sectional.md</code>
+    </div>
+    <div class="card">
+      <div class="prose md"><h2>The claim</h2>
+<p>Score every company on quality, valuation and leverage against the current peer group. Each company is scored on these different methods:</p>
+<ul><li><strong>percentile</strong> - fraction of peers this company beats. Rank-based, so one absurd P/E can't move anybody else's score.</li><li><strong>zscore</strong> - median-centred, standard-deviation-scaled. Keeps the size of a gap, not just its order, and inherits every outlier along with it.</li><li><strong>minmax</strong> - linear between the best and worst peer in the cross-section. Two extreme companies decide everybody's score. Kept specifically so that claim is demonstrable rather than folklore. Set <code>method="minmax"</code> and watch one outlier move the whole ranking.</li></ul>
+<p>Weights are the original's: 45% quality, 45% valuation, 10% risk.</p>
+<h2>Methods</h2>
+<p>Valuation of a company is the foundational strategy in traditional hedge funds. One of the greatest men to do this was Warren Buffet, whose methods inspired the creation of this algorithim.</p>
+<h3>Quality</h3>
+<p>A companies quality is how good it is at producing capital flow. A company that is valued cheaply could be a completely horrid company in producing cashflow which is why this is absolutely nescessary in determining if a company can convert a cheap stock price into a market beating return on stock price.</p>
+<ul><li><strong>Operating Margin</strong> - Tells us what fraction of every sales dollar the buisness keeps after running itself, before interest and taxes. We look for it to be both high and stable which demonstrates pricing power and cost discipline. </li><li><strong>FCF Margin</strong> - What fraction of sales actually turns into spendable cash after capex. This acts as a check on operating margin in order to make sure the healthy operating margin is substantiated by liquid assets. </li><li><strong>ROIC</strong> - How efficient a company is at turning capex into profit. If a company is able to have a high return on invested capital then their upside growth can likely be unleashed with an increase in investment. </li><li><strong>Revenue Growth</strong> - Is the buisness actually getting bigger. This is very important to put into the context of ROIC of course, but it still will help rule out the lower end of companies that show good margins yet still manage to have a decreasing revenue.</li></ul>
+<h3>Valuation</h3>
+<p>This is how good of a deal we are actually getting on the buisness. Tech companies look amazing on paper because of their insanely high operating margins, but with the context of valuation we are able determine if we actually get a worth while deal on the company.</p>
+<ul><li><strong>FCF Yeild</strong> - How much cash the buisness throws off per dollar you're paying for it. A high yeild would indicate that it is producing a lot of spendable cash that it is able to share with the investors. Basically how much you will be rewarded for investing. </li><li><strong>EV/EBITDA</strong> - Allows you to compare the actual value of a company with debt on an equal footing. This is beneficial over P/E, yet P/E is still nescessary.</li><li><strong>P/E</strong> - Price per dollar of net income. One of the most used multiples that allows us to assess how a companies stock price compares to it's earnings. Needs to be industry neutralized. </li></ul>
+<h3>Risk</h3>
+<p>A company can look great on paper but if it is drowning in debt you will only ever get the total value of the compaies assets.</p>
+<ul><li><strong>Net Debt/EBITDA</strong> - How many years of current cash earnings it would take to pay off the companie's net debt. High debt is incredably risky in an industry that is exposed to frequent swings. Even if a company is incredably profitable, if it is drowning in debt they likely won't be able to make it through hard times. </li></ul>
+<h2>Future Improvements</h2>
+<p>I believe a significant weakness of this model lies in valuation. I believe we do a great job of finding good companies but I think that there should be an inclusion of somethign more technical for price breakdown such as DCF valuation. Valuation is just as important as quality since a good company with a high valuation could grow very slow.</p></div>
+    </div>
+  </section>
+  
+
 </div>
 
 </main>

@@ -196,6 +196,35 @@
     </div>
   </section>
 
+  
+  <section>
+    <div class="section-head">
+      <h2 class="headline">Research</h2>
+      <code class="mono caption tertiary">research/strategies/stat_arb.md</code>
+    </div>
+    <div class="card">
+      <div class="prose md"><h2>The claim</h2>
+<p>Two related names' spread reverts to its mean. Estimate a hedge ratio by OLS, build the spread <code>y − β·x</code>, and trade its z-score: short the spread when it is stretched rich, long it when it is stretched cheap, close at the mean.</p>
+<p>That is the entire decision rule, and on its own it says nothing about whether <code>y</code> and <code>x</code> are actually related. Two stocks that drift upward together for three years produce a confident β, a tight-looking spread and a clean z-score whether or not anything connects them — running OLS on two independent random walks produces exactly that pattern. This is the spurious-regression problem, and it sits inside the strategy's live decision rule unless something screens for it.</p>
+<h2>What screens for it: cointegration, done properly</h2>
+<p><code>require_cointegration=True</code> gates every entry on Engle-Granger, re-tested every <code>retest_every</code> bars and cached by pair (<code>lab/analysis/cointegration.py</code>). Getting that test right turned out to be most of the work:</p>
+<p><strong>The residuals need MacKinnon's table, not the standard one.</strong> Step one regresses <code>y</code> on <code>x</code> and asks whether the residuals are stationary — but the residuals come from a regression fit to minimise their own variance, so they look more stationary than observed data does. The standard Dickey-Fuller table doesn't know that, and over-rejects. Measured on 528 pairs from this repository's own data, changing nothing but the reference table:</p>
+<div class="table-wrap"><table class="data prose-table"><thead><tr><th>Test</th><th>Pairs called cointegrated at 5%</th></tr></thead><tbody><tr><td><code>adfuller()</code> on residuals (wrong table)</td><td>90 (17.0%)</td></tr><tr><td><code>coint()</code>, MacKinnon residual-based table</td><td><strong>42 (8.0%)</strong></td></tr></tbody></table></div>
+<p>A 2.14× over-rejection, from the table alone.</p>
+<p><strong>Step two is not optional.</strong> Engle-Granger has a second step that a purely generated implementation of it dropped: fit the error-correction model and estimate α, the speed the spread reverts at. Without it, a pair can be cointegrated at p = 0.01 with α ≈ 0 — a real long-run relationship that never actually corrects on any timescale you can hold. Requiring <code>alpha &lt; 0</code> and a half-life under 60 days removes seven more of the 42 survivors: one in six, statistically significant and untradeable at the same time.</p>
+<h2>What the screen does to the strategy</h2>
+<p>Eight consumer and energy names, 2021–2025, 6bp round trip:</p>
+<div class="table-wrap"><table class="data prose-table"><thead><tr><th></th><th>Return</th><th>Sharpe</th><th>t</th><th>Max DD</th><th>Trades</th></tr></thead><tbody><tr><td>Unscreened</td><td>−16.76%</td><td>−0.84</td><td>−1.8</td><td>−16.77%</td><td>258</td></tr><tr><td><strong>Cointegration-screened</strong></td><td><strong>−4.68%</strong></td><td><strong>−0.68</strong></td><td>−1.4</td><td><strong>−6.76%</strong></td><td><strong>28</strong></td></tr><tr><td>Buy and hold, same universe</td><td>+62.49%</td><td>0.85</td><td>1.8</td><td>−11.93%</td><td>8</td></tr></tbody></table></div>
+<p>The screen refused 584 signals — a 91% rejection rate — cut the trade count by 89%, and removed roughly three quarters of the loss and more than half the drawdown.</p>
+<p><strong>It did not make the strategy work.</strong> Both versions lose, and both lose to buying the same eight names and doing nothing. The finding is not "screening fixes pairs trading" — it's that most of what the unscreened version was trading was never a relationship at all, and the cost of finding that out was one statistical test it had never been running.</p>
+<h2>What this doesn't establish</h2>
+<p>Daily-bar pairs trading on liquid US large caps reads, from this sample, like a crowded space where a 6bp retail round trip is enough to erase what's left after the spurious relationships are screened out. That's a real result, but it's one dataset and one cost assumption. Short availability and borrow cost aren't modelled — every result here assumes shorting is free and always possible, which it isn't. And a screen tuned to remove losing trades on this sample is a screen that has seen this sample; <code>stat_arb_ev</code> is the harder version of the same idea, gating on whether a trade clears its own costs rather than on whether it would have worked in hindsight.</p>
+<h2>Where the code came from</h2>
+<p>Ported from <code>paper-broker/algos/statArbClass.py</code>, with the rolling-window mechanics of <code>paper/backTestStat.py</code> — the decision rule is unchanged. The cointegration machinery is ported from the cointegration-explorer research app, where the MacKinnon-table finding and the missing error-correction step were first caught by checking the implementation against Engle &amp; Granger (1987) directly. See <a href="../findings.md"><code>research/findings.md</code></a> for the full derivation and <a href="../ported-changes.md"><code>research/ported-changes.md</code></a> for every place the port changed behaviour.</p></div>
+    </div>
+  </section>
+  
+
 </div>
 
 </main>
